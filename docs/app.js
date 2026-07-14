@@ -109,7 +109,7 @@ function cardHtml(item) {
 function groupByProvider(items) {
   const groups = new Map();
   for (const item of items) {
-    const key = (item.providers || []).slice(0, 2).join(", ") || "Streaming";
+    const key = (item.providers || []).slice(0, 2).join(", ") || "Platform TBA";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }

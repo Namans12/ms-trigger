@@ -533,7 +533,7 @@ def item_plain_line(item: ReleaseItem) -> str:
 def group_by_provider(items: list[ReleaseItem]) -> dict[str, list[ReleaseItem]]:
     grouped: dict[str, list[ReleaseItem]] = defaultdict(list)
     for item in items:
-        provider_key = ", ".join(item.providers[:2]) if item.providers else "Streaming"
+        provider_key = ", ".join(item.providers[:2]) if item.providers else "Platform TBA"
         grouped[provider_key].append(item)
     return grouped
 
