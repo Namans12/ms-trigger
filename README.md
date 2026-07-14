@@ -100,7 +100,14 @@ Repo Settings > Pages > Source: **Deploy from a branch** > Branch: `main`, folde
 
 Your dashboard will be at `https://<username>.github.io/<repo>/`.
 
-### 7. Done
+### 7. Deploy to Vercel (for live on-demand refresh)
+
+1. Go to https://vercel.com → sign in with GitHub → **Add New… > Project** → import this repo.
+2. Leave build settings as-is (`vercel.json` already points the output to `docs/` and configures the API function).
+3. Under **Environment Variables**, add `TMDB_API_KEY` with the same TMDB key.
+4. Deploy. Your app is at `https://<project>.vercel.app/` — the **Refresh** button there fetches live TMDB data on demand; every push to `main` (including the twice-weekly data commits) auto-redeploys.
+
+### 8. Done
 
 The workflow in `.github/workflows/ott-radar.yml` runs automatically Wednesday and Friday at 2:00 PM IST. You can also trigger it manually from the Actions tab (with an optional dry-run flag that updates the dashboard without sending Telegram/email).
 

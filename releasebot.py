@@ -20,6 +20,7 @@ import os
 import smtplib
 import sys
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
@@ -278,14 +279,20 @@ def fetch_ott_movies(
 
     confirmed_ids = {raw["id"] for raw in confirmed}
     seen: set[int] = set()
-    items: list[ReleaseItem] = []
+    ordered: list[dict[str, Any]] = []
     for raw in confirmed[:per_query_limit] + streaming[:per_query_limit]:
         movie_id = raw.get("id")
         if movie_id is None or movie_id in seen:
             continue
         seen.add(movie_id)
+        ordered.append(raw)
 
-        details = tmdb.movie_details(movie_id)
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        details_list = list(executor.map(lambda r: tmdb.movie_details(r["id"]), ordered))
+
+    items: list[ReleaseItem] = []
+    for raw, details in zip(ordered, details_list):
+        movie_id = raw["id"]
         best_date = digital_release_date(details, tmdb.region)
         providers = flatrate_providers(details, tmdb.region)
 
@@ -328,11 +335,13 @@ def fetch_ott_shows(
     }
     if language:
         params["with_original_language"] = language
-    raws = tmdb.discover("tv", **params)
+    raws = tmdb.discover("tv", **params)[:limit]
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        details_list = list(executor.map(lambda r: tmdb.tv_details(r["id"]), raws))
 
     items: list[ReleaseItem] = []
-    for raw in raws[:limit]:
-        details = tmdb.tv_details(raw["id"])
+    for raw, details in zip(raws, details_list):
         providers = flatrate_providers(details, tmdb.region)
         if not providers:
             networks = tuple(n.get("name", "") for n in details.get("networks", []))
@@ -795,41 +804,74 @@ def write_dashboard_data(digest: dict[str, Any], output_dir: Path, history_limit
 # ---------------------------------------------------------------------------
 
 
-def main() -> int:
-    dry_run = env_bool("DRY_RUN", False)
-    use_sample_data = env_bool("USE_SAMPLE_DATA", False)
-    telegram_enabled = env_bool("TELEGRAM_ENABLED", True) and not dry_run
-    email_enabled = env_bool("EMAIL_ENABLED", False) and not dry_run
+def build_digest(now: datetime | None = None, diagnostics: bool = False) -> dict[str, Any]:
+    """Fetch both windows and return the digest dict (sections = ReleaseItem lists).
 
+    Shared by the scheduled GitHub Action and the on-demand Vercel API.
+    Honors REGION / LANGUAGES / POPULAR_MIN_POPULARITY / RELEASE_TIMEZONE /
+    USE_SAMPLE_DATA / DASHBOARD_URL env vars.
+    """
     region = os.getenv("REGION", "IN")
     languages = env_list("LANGUAGES", "hi,en")
     min_popularity = float(os.getenv("POPULAR_MIN_POPULARITY", "25"))
     timezone = ZoneInfo(os.getenv("RELEASE_TIMEZONE", "Asia/Kolkata"))
-    dashboard_url = os.getenv("DASHBOARD_URL", "")
-    output_dir = Path(os.getenv("OUTPUT_DIR", "docs"))
 
-    now = datetime.now(timezone)
+    if now is None:
+        now = datetime.now(timezone)
     windows = compute_windows(now.date())
     out_start, out_end = windows["out_now"]
     up_start, up_end = windows["coming_up"]
 
-    if use_sample_data:
+    if env_bool("USE_SAMPLE_DATA", False):
         out_sections = sample_sections(out_start)
         up_sections = sample_sections(up_start)
     else:
         tmdb = TmdbClient(env_required("TMDB_API_KEY"), region)
-        if dry_run or env_bool("DIAGNOSTICS", False):
+        if diagnostics:
             run_diagnostics(tmdb, out_start, up_end)
         out_sections = fetch_window_sections(tmdb, languages, out_start, out_end, min_popularity)
         up_sections = fetch_window_sections(tmdb, languages, up_start, up_end, min_popularity)
 
-    digest: dict[str, Any] = {
+    return {
         "generated_at": now.isoformat(timespec="seconds"),
         "region": region,
-        "dashboard_url": dashboard_url,
+        "dashboard_url": os.getenv("DASHBOARD_URL", ""),
         "out_now": {"start": out_start.isoformat(), "end": out_end.isoformat(), "sections": out_sections},
         "coming_up": {"start": up_start.isoformat(), "end": up_end.isoformat(), "sections": up_sections},
     }
+
+
+def build_digest_payload(now: datetime | None = None) -> dict[str, Any]:
+    """JSON-ready digest (same shape as docs/data.json)."""
+    digest = build_digest(now)
+    return {
+        "generated_at": digest["generated_at"],
+        "region": digest["region"],
+        "out_now": {
+            "start": digest["out_now"]["start"],
+            "end": digest["out_now"]["end"],
+            "sections": sections_to_json(digest["out_now"]["sections"]),
+        },
+        "coming_up": {
+            "start": digest["coming_up"]["start"],
+            "end": digest["coming_up"]["end"],
+            "sections": sections_to_json(digest["coming_up"]["sections"]),
+        },
+    }
+
+
+def main() -> int:
+    dry_run = env_bool("DRY_RUN", False)
+    telegram_enabled = env_bool("TELEGRAM_ENABLED", True) and not dry_run
+    email_enabled = env_bool("EMAIL_ENABLED", False) and not dry_run
+
+    output_dir = Path(os.getenv("OUTPUT_DIR", "docs"))
+
+    digest = build_digest(diagnostics=dry_run or env_bool("DIAGNOSTICS", False))
+    out_sections = digest["out_now"]["sections"]
+    up_sections = digest["coming_up"]["sections"]
+    out_start = date.fromisoformat(digest["out_now"]["start"])
+    out_end = date.fromisoformat(digest["out_now"]["end"])
 
     message = format_message(digest)
     plain_message = format_plain_message(digest)

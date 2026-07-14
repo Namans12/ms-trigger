@@ -1,6 +1,6 @@
 /* OTT Radar service worker: cache the app shell, network-first for data. */
 
-const CACHE = "ott-radar-v1";
+const CACHE = "ott-radar-v2";
 const SHELL = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -18,6 +18,9 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || url.origin !== location.origin) return;
+
+  // Live API: always network, never cached by the SW.
+  if (url.pathname.includes("/api/")) return;
 
   // Data: network first, fall back to cache when offline.
   if (url.pathname.endsWith("data.json") || url.pathname.endsWith("history.json")) {

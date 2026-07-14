@@ -39,7 +39,35 @@ cd docs && python -m http.server 8000
 Open http://localhost:8000 and check:
 - Out Now / Coming Up / Past Digests tabs render cards grouped by platform
 - Search box, section chips (Hindi/English/Popular), platform + type dropdowns filter cards
-- No console errors (service worker registration may be skipped on plain http; that's fine)
+- Source badge shows "Snapshot …" (static host) and the Refresh button alerts about
+  needing the Vercel deployment — that's the expected fallback
+- No console errors beyond the expected /api/releases 404 probe on static hosts
+
+## Live API (Vercel function)
+
+`api/releases.py` wraps `releasebot.build_digest_payload()`. Test the full
+live path locally with a combined server:
+
+```bash
+python - <<'EOF'
+import json, os, sys
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+os.environ["USE_SAMPLE_DATA"] = "true"   # or set TMDB_API_KEY for real data
+sys.path.insert(0, os.getcwd())
+import releasebot
+class H(SimpleHTTPRequestHandler):
+    def __init__(self, *a, **kw): super().__init__(*a, directory="docs", **kw)
+    def do_GET(self):
+        if self.path.startswith("/api/releases"):
+            b = json.dumps(releasebot.build_digest_payload()).encode()
+            self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(b)
+        else: super().do_GET()
+ThreadingHTTPServer(("127.0.0.1", 8788), H).serve_forever()
+EOF
+```
+
+On http://127.0.0.1:8788 the badge should show "LIVE" and the Refresh button
+should re-fetch (badge "LIVE · just fetched").
 
 Playwright (chromium) is available for headless screenshot checks if needed.
 

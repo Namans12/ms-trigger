@@ -27,20 +27,58 @@ function esc(s) {
   })[c]);
 }
 
-async function loadData() {
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function setSource(label, kind) {
+  const badge = $("#data-source");
+  badge.textContent = label;
+  badge.dataset.kind = kind;
+  badge.hidden = false;
+}
+
+async function loadData({ fresh = false } = {}) {
+  const btn = $("#refresh-btn");
+  btn.classList.add("spinning");
+  btn.disabled = true;
   try {
-    const bust = `?t=${Date.now()}`;
-    const [dataRes, historyRes] = await Promise.all([
-      fetch(`data.json${bust}`),
-      fetch(`history.json${bust}`).catch(() => null),
-    ]);
-    state.data = await dataRes.json();
-    if (historyRes && historyRes.ok) state.history = await historyRes.json();
+    // Prefer the live API (Vercel serverless). Fall back to the static
+    // snapshot committed by the scheduled GitHub Action.
+    let loadedLive = false;
+    try {
+      const url = fresh ? `api/releases?t=${Date.now()}` : "api/releases";
+      const live = await fetchJson(url);
+      if (live && live.out_now) {
+        state.data = live;
+        loadedLive = true;
+        setSource(fresh ? "LIVE · just fetched" : "LIVE", "live");
+      }
+    } catch (_) {
+      /* no API here (e.g. GitHub Pages) -> static fallback below */
+    }
+    if (!loadedLive) {
+      state.data = await fetchJson(`data.json?t=${Date.now()}`);
+      setSource("Snapshot · updates Wed & Fri 2 PM", "static");
+      if (fresh) {
+        alert("Live refresh needs the Vercel deployment — this copy shows the latest scheduled snapshot.");
+      }
+    }
+    try {
+      state.history = await fetchJson(`history.json?t=${Date.now()}`);
+    } catch (_) {
+      /* history optional */
+    }
     populatePlatformFilter();
     $("#generated-at").textContent = `Updated ${new Date(state.data.generated_at).toLocaleString()}`;
     render();
   } catch (err) {
     content.innerHTML = `<p class="empty">Could not load data yet. The first scheduled run will populate this dashboard.<br><small>${esc(err.message)}</small></p>`;
+  } finally {
+    btn.classList.remove("spinning");
+    btn.disabled = false;
   }
 }
 
@@ -210,6 +248,8 @@ document.querySelectorAll("#section-chips .chip").forEach((chip) =>
     render();
   })
 );
+
+$("#refresh-btn").addEventListener("click", () => loadData({ fresh: true }));
 
 $("#platform-filter").addEventListener("change", (e) => {
   state.platform = e.target.value;
