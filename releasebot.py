@@ -103,40 +103,59 @@ class TmdbClient:
                 break
         return results
 
-    def watch_providers(self, media_type: str, item_id: int) -> tuple[str, ...]:
-        payload = self.get(f"/{media_type}/{item_id}/watch/providers")
-        region_payload = payload.get("results", {}).get(self.region, {})
-        providers = region_payload.get("flatrate", []) or []
-        return tuple(provider.get("provider_name", "") for provider in providers if provider.get("provider_name"))
+    def movie_details(self, movie_id: int) -> dict[str, Any]:
+        return self.get(f"/movie/{movie_id}", append_to_response="release_dates,watch/providers")
 
-    def digital_release_date(self, movie_id: int) -> str | None:
-        """Best-available 'digital' (OTT) release date for a movie.
+    def tv_details(self, tv_id: int) -> dict[str, Any]:
+        return self.get(f"/tv/{tv_id}", append_to_response="watch/providers")
 
-        TMDB's India-specific digital release date is very sparse (most
-        studios never submit it), so we prefer the India entry if present,
-        otherwise fall back to the earliest digital date recorded for any
-        country. Returns an ISO date string ('YYYY-MM-DD') or None.
-        """
-        payload = self.get(f"/movie/{movie_id}/release_dates")
-        countries = payload.get("results", [])
 
-        region_dates = [
-            rd["release_date"][:10]
-            for country in countries
-            if country.get("iso_3166_1") == self.region
-            for rd in country.get("release_dates", [])
-            if rd.get("type") == 4
-        ]
-        if region_dates:
-            return min(region_dates)
+# Networks that are themselves streaming platforms. Used as a fallback when a
+# brand-new show has no watch-provider attribution on TMDB yet (provider data
+# usually appears only days after a title goes live on the service).
+STREAMING_NETWORKS = {
+    "Netflix", "Amazon Prime Video", "Prime Video", "amazon prime video",
+    "Disney+", "Disney+ Hotstar", "JioHotstar", "Hotstar", "JioCinema",
+    "Apple TV+", "HBO Max", "Max", "Paramount+", "Peacock", "Hulu",
+    "ZEE5", "SonyLIV", "Sun NXT", "aha", "hoichoi", "MX Player",
+    "Crunchyroll", "Rakuten Viki", "Lionsgate Play", "discovery+",
+    "YouTube Premium", "Tubi", "Stan", "BINGE", "Viu",
+}
 
-        any_dates = [
-            rd["release_date"][:10]
-            for country in countries
-            for rd in country.get("release_dates", [])
-            if rd.get("type") == 4
-        ]
-        return min(any_dates) if any_dates else None
+
+def flatrate_providers(details: dict[str, Any], region: str) -> tuple[str, ...]:
+    region_payload = details.get("watch/providers", {}).get("results", {}).get(region, {})
+    providers = region_payload.get("flatrate", []) or []
+    return tuple(p.get("provider_name", "") for p in providers if p.get("provider_name"))
+
+
+def digital_release_date(details: dict[str, Any], region: str) -> str | None:
+    """Best-available 'digital' (OTT) release date for a movie.
+
+    Prefers the region-specific digital (type 4) date, falls back to the
+    earliest digital date recorded for any country. Returns 'YYYY-MM-DD' or
+    None. Region-specific digital dates are sparse on TMDB, hence the
+    fallback.
+    """
+    countries = details.get("release_dates", {}).get("results", [])
+
+    region_dates = [
+        rd["release_date"][:10]
+        for country in countries
+        if country.get("iso_3166_1") == region
+        for rd in country.get("release_dates", [])
+        if rd.get("type") == 4 and rd.get("release_date")
+    ]
+    if region_dates:
+        return min(region_dates)
+
+    any_dates = [
+        rd["release_date"][:10]
+        for country in countries
+        for rd in country.get("release_dates", [])
+        if rd.get("type") == 4 and rd.get("release_date")
+    ]
+    return min(any_dates) if any_dates else None
 
 
 def tmdb_item_url(media_type: str, item_id: int) -> str:
@@ -217,49 +236,73 @@ def compute_windows(today: date) -> dict[str, tuple[date, date]]:
 # ---------------------------------------------------------------------------
 
 
-def fetch_ott_movie_candidates(
-    tmdb: TmdbClient,
-    language: str | None = None,
-    pages: int = 4,
-) -> list[dict[str, Any]]:
-    """Broad pool of movies currently streaming (flatrate) in the region.
-
-    We deliberately do NOT filter by TMDB's `with_release_type=4` + `region`
-    date here: India-specific digital release dates are sparse on TMDB (most
-    studios never submit that field), so a server-side date filter on it
-    returns almost nothing. Instead we pull a wider candidate pool sorted by
-    recency/popularity and resolve each candidate's actual OTT date via
-    `TmdbClient.digital_release_date`, with sensible fallbacks, then filter
-    client-side in `fetch_ott_movies`.
-    """
-    params: dict[str, Any] = {
-        "watch_region": tmdb.region,
-        "with_watch_monetization_types": "flatrate",
-        "sort_by": "primary_release_date.desc",
-    }
-    if language:
-        params["with_original_language"] = language
-    return tmdb.discover("movie", pages=pages, **params)
-
-
 def fetch_ott_movies(
     tmdb: TmdbClient,
     start_date: str,
     end_date: str,
     language: str | None = None,
-) -> list[dict[str, Any]]:
-    candidates = fetch_ott_movie_candidates(tmdb, language)
-    matched: list[dict[str, Any]] = []
-    for raw in candidates:
+    per_query_limit: int = 20,
+) -> list[ReleaseItem]:
+    """OTT movie releases in [start_date, end_date] for the region.
+
+    Two candidate pools, merged:
+      A. Movies with a confirmed region digital (type 4) release date in the
+         window (`with_release_type=4` + `region`). Reliable when studios
+         submit the date; sparse otherwise.
+      B. Popular movies currently streamable (flatrate) in the region whose
+         theatrical release was within the last ~6 months — i.e. titles that
+         just arrived on a platform. Their actual OTT date is resolved from
+         the release-dates endpoint and filtered client-side.
+
+    Provider attribution is used when present but NOT required: TMDB adds
+    provider data only after a title is live, so requiring it would silently
+    drop everything that releases this week (the bug that emptied the digest).
+    """
+    confirmed = tmdb.discover(
+        "movie",
+        region=tmdb.region,
+        with_release_type="4",
+        sort_by="popularity.desc",
+        **({"with_original_language": language} if language else {}),
+        **{"release_date.gte": start_date, "release_date.lte": end_date},
+    )
+    recent_start = (date.fromisoformat(start_date) - timedelta(days=180)).isoformat()
+    streaming = tmdb.discover(
+        "movie",
+        watch_region=tmdb.region,
+        with_watch_monetization_types="flatrate",
+        sort_by="popularity.desc",
+        **({"with_original_language": language} if language else {}),
+        **{"primary_release_date.gte": recent_start, "primary_release_date.lte": end_date},
+    )
+
+    confirmed_ids = {raw["id"] for raw in confirmed}
+    seen: set[int] = set()
+    items: list[ReleaseItem] = []
+    for raw in confirmed[:per_query_limit] + streaming[:per_query_limit]:
         movie_id = raw.get("id")
-        if movie_id is None:
+        if movie_id is None or movie_id in seen:
             continue
-        best_date = tmdb.digital_release_date(movie_id) or raw.get("release_date")
+        seen.add(movie_id)
+
+        details = tmdb.movie_details(movie_id)
+        best_date = digital_release_date(details, tmdb.region)
+        providers = flatrate_providers(details, tmdb.region)
+
+        if not best_date:
+            if movie_id in confirmed_ids:
+                # Filter guarantees a region digital date exists in-window even
+                # if we could not extract the exact day.
+                best_date = raw.get("release_date") or start_date
+            elif providers and raw.get("release_date"):
+                # Straight-to-OTT originals: primary release date IS the OTT date.
+                best_date = raw["release_date"]
+
         if best_date and start_date <= best_date <= end_date:
             enriched = dict(raw)
             enriched["release_date"] = best_date
-            matched.append(enriched)
-    return matched
+            items.append(normalize_movie(enriched, providers))
+    return items
 
 
 def fetch_ott_shows(
@@ -267,32 +310,36 @@ def fetch_ott_shows(
     start_date: str,
     end_date: str,
     language: str | None = None,
-) -> list[dict[str, Any]]:
+    limit: int = 20,
+) -> list[ReleaseItem]:
+    """Shows premiering in the window.
+
+    No `with_watch_monetization_types` server-side filter: provider data does
+    not exist yet for shows premiering this week, so that filter excludes
+    exactly the shows we want (this is what returned 0 for every run).
+    Instead we fetch by air-date window and keep a show when it has flatrate
+    providers in the region OR it airs on a known streaming network
+    (Netflix / Prime / Hotstar / ... originals).
+    """
     params: dict[str, Any] = {
-        "watch_region": tmdb.region,
-        "with_watch_monetization_types": "flatrate",
+        "sort_by": "popularity.desc",
         "first_air_date.gte": start_date,
         "first_air_date.lte": end_date,
-        "sort_by": "popularity.desc",
     }
     if language:
         params["with_original_language"] = language
-    return tmdb.discover("tv", **params)
+    raws = tmdb.discover("tv", **params)
 
-
-def attach_providers(
-    tmdb: TmdbClient,
-    raws: list[dict[str, Any]],
-    media_type: str,
-    limit: int,
-    require_providers: bool,
-) -> list[ReleaseItem]:
-    normalize = normalize_movie if media_type == "movie" else normalize_tv
     items: list[ReleaseItem] = []
     for raw in raws[:limit]:
-        providers = tmdb.watch_providers(media_type, raw["id"])
-        if providers or not require_providers:
-            items.append(normalize(raw, providers))
+        details = tmdb.tv_details(raw["id"])
+        providers = flatrate_providers(details, tmdb.region)
+        if not providers:
+            networks = tuple(n.get("name", "") for n in details.get("networks", []))
+            providers = tuple(n for n in networks if n in STREAMING_NETWORKS)
+        if not providers:
+            continue  # linear-TV-only / not a streaming release
+        items.append(normalize_tv(raw, providers))
     return items
 
 
@@ -301,12 +348,9 @@ def fetch_language_ott(
     language: str,
     start_date: str,
     end_date: str,
-    per_type_limit: int = 15,
 ) -> list[ReleaseItem]:
-    movies = fetch_ott_movies(tmdb, start_date, end_date, language)
-    shows = fetch_ott_shows(tmdb, start_date, end_date, language)
-    items = attach_providers(tmdb, movies, "movie", per_type_limit, require_providers=True)
-    items += attach_providers(tmdb, shows, "tv", per_type_limit, require_providers=True)
+    items = fetch_ott_movies(tmdb, start_date, end_date, language)
+    items += fetch_ott_shows(tmdb, start_date, end_date, language)
     return dedupe(items)[:20]
 
 
@@ -316,24 +360,28 @@ def fetch_popular_ott(
     start_date: str,
     end_date: str,
     min_popularity: float,
-    per_type_limit: int = 15,
 ) -> list[ReleaseItem]:
-    """Any-language OTT releases above a popularity threshold (Tamil, Telugu, Korean...)."""
-    movies = [
-        raw
-        for raw in fetch_ott_movies(tmdb, start_date, end_date)
-        if raw.get("original_language") not in exclude_languages
-        and float(raw.get("popularity") or 0) >= min_popularity
+    """Any-language OTT releases above a popularity threshold (Tamil, Telugu, Korean...).
+
+    If the threshold filters everything out (TMDB popularity scores vary a
+    lot week to week), fall back to the top titles by popularity so the
+    section is never empty when releases exist.
+    """
+    candidates = [
+        item
+        for item in fetch_ott_movies(tmdb, start_date, end_date)
+        + fetch_ott_shows(tmdb, start_date, end_date)
+        if item.language not in exclude_languages
     ]
-    shows = [
-        raw
-        for raw in fetch_ott_shows(tmdb, start_date, end_date)
-        if raw.get("original_language") not in exclude_languages
-        and float(raw.get("popularity") or 0) >= min_popularity
-    ]
-    items = attach_providers(tmdb, movies, "movie", per_type_limit, require_providers=True)
-    items += attach_providers(tmdb, shows, "tv", per_type_limit, require_providers=True)
-    return dedupe(items)[:20]
+    candidates = dedupe(candidates)
+    above = [item for item in candidates if item.popularity >= min_popularity]
+    if len(above) < 5:
+        remaining = sorted(
+            (item for item in candidates if item not in above),
+            key=lambda item: -item.popularity,
+        )
+        above += remaining[: 5 - len(above)]
+    return dedupe(above)[:20]
 
 
 def fetch_window_sections(
