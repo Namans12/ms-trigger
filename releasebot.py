@@ -109,6 +109,35 @@ class TmdbClient:
         providers = region_payload.get("flatrate", []) or []
         return tuple(provider.get("provider_name", "") for provider in providers if provider.get("provider_name"))
 
+    def digital_release_date(self, movie_id: int) -> str | None:
+        """Best-available 'digital' (OTT) release date for a movie.
+
+        TMDB's India-specific digital release date is very sparse (most
+        studios never submit it), so we prefer the India entry if present,
+        otherwise fall back to the earliest digital date recorded for any
+        country. Returns an ISO date string ('YYYY-MM-DD') or None.
+        """
+        payload = self.get(f"/movie/{movie_id}/release_dates")
+        countries = payload.get("results", [])
+
+        region_dates = [
+            rd["release_date"][:10]
+            for country in countries
+            if country.get("iso_3166_1") == self.region
+            for rd in country.get("release_dates", [])
+            if rd.get("type") == 4
+        ]
+        if region_dates:
+            return min(region_dates)
+
+        any_dates = [
+            rd["release_date"][:10]
+            for country in countries
+            for rd in country.get("release_dates", [])
+            if rd.get("type") == 4
+        ]
+        return min(any_dates) if any_dates else None
+
 
 def tmdb_item_url(media_type: str, item_id: int) -> str:
     path = "movie" if media_type == "movie" else "tv"
@@ -188,24 +217,49 @@ def compute_windows(today: date) -> dict[str, tuple[date, date]]:
 # ---------------------------------------------------------------------------
 
 
+def fetch_ott_movie_candidates(
+    tmdb: TmdbClient,
+    language: str | None = None,
+    pages: int = 4,
+) -> list[dict[str, Any]]:
+    """Broad pool of movies currently streaming (flatrate) in the region.
+
+    We deliberately do NOT filter by TMDB's `with_release_type=4` + `region`
+    date here: India-specific digital release dates are sparse on TMDB (most
+    studios never submit that field), so a server-side date filter on it
+    returns almost nothing. Instead we pull a wider candidate pool sorted by
+    recency/popularity and resolve each candidate's actual OTT date via
+    `TmdbClient.digital_release_date`, with sensible fallbacks, then filter
+    client-side in `fetch_ott_movies`.
+    """
+    params: dict[str, Any] = {
+        "watch_region": tmdb.region,
+        "with_watch_monetization_types": "flatrate",
+        "sort_by": "primary_release_date.desc",
+    }
+    if language:
+        params["with_original_language"] = language
+    return tmdb.discover("movie", pages=pages, **params)
+
+
 def fetch_ott_movies(
     tmdb: TmdbClient,
     start_date: str,
     end_date: str,
     language: str | None = None,
 ) -> list[dict[str, Any]]:
-    params: dict[str, Any] = {
-        "region": tmdb.region,
-        "watch_region": tmdb.region,
-        "with_watch_monetization_types": "flatrate",
-        "with_release_type": "4",
-        "release_date.gte": start_date,
-        "release_date.lte": end_date,
-        "sort_by": "popularity.desc",
-    }
-    if language:
-        params["with_original_language"] = language
-    return tmdb.discover("movie", **params)
+    candidates = fetch_ott_movie_candidates(tmdb, language)
+    matched: list[dict[str, Any]] = []
+    for raw in candidates:
+        movie_id = raw.get("id")
+        if movie_id is None:
+            continue
+        best_date = tmdb.digital_release_date(movie_id) or raw.get("release_date")
+        if best_date and start_date <= best_date <= end_date:
+            enriched = dict(raw)
+            enriched["release_date"] = best_date
+            matched.append(enriched)
+    return matched
 
 
 def fetch_ott_shows(
@@ -295,7 +349,9 @@ def fetch_window_sections(
     for language in languages:
         section = label_by_language.get(language, language)
         sections[section] = fetch_language_ott(tmdb, language, start_s, end_s)
+        print(f"  [{start_s}..{end_s}] {section}: {len(sections[section])} items", file=sys.stderr)
     sections["popular"] = fetch_popular_ott(tmdb, languages, start_s, end_s, min_popularity)
+    print(f"  [{start_s}..{end_s}] popular: {len(sections['popular'])} items", file=sys.stderr)
     return sections
 
 
