@@ -356,6 +356,67 @@ def fetch_window_sections(
 
 
 # ---------------------------------------------------------------------------
+# Diagnostics (runs during dry runs to pinpoint why queries return nothing)
+# ---------------------------------------------------------------------------
+
+
+def _diag_query(tmdb: TmdbClient, label: str, media_type: str, **params: Any) -> None:
+    try:
+        payload = tmdb.get(f"/discover/{media_type}", **params)
+        total = payload.get("total_results", 0)
+        date_key = "release_date" if media_type == "movie" else "first_air_date"
+        name_key = "title" if media_type == "movie" else "name"
+        top = ", ".join(
+            f"{r.get(name_key)!r} ({r.get(date_key)}, {r.get('original_language')})"
+            for r in payload.get("results", [])[:4]
+        )
+        print(f"DIAG {label}: total={total} | {top}", file=sys.stderr)
+    except Exception as exc:
+        print(f"DIAG {label}: ERROR {exc}", file=sys.stderr)
+
+
+def run_diagnostics(tmdb: TmdbClient, start: date, end: date) -> None:
+    s, e = start.isoformat(), end.isoformat()
+    print(f"DIAG region={tmdb.region} window={s}..{e}", file=sys.stderr)
+
+    _diag_query(tmdb, "tv watch_region+flatrate+dates", "tv",
+                watch_region=tmdb.region, with_watch_monetization_types="flatrate",
+                sort_by="popularity.desc",
+                **{"first_air_date.gte": s, "first_air_date.lte": e})
+    _diag_query(tmdb, "tv watch_region+flatrate (no dates)", "tv",
+                watch_region=tmdb.region, with_watch_monetization_types="flatrate",
+                sort_by="popularity.desc")
+    _diag_query(tmdb, "tv dates only (no watch filter)", "tv",
+                sort_by="popularity.desc",
+                **{"first_air_date.gte": s, "first_air_date.lte": e})
+    _diag_query(tmdb, "tv watch_region only", "tv",
+                watch_region=tmdb.region, sort_by="popularity.desc",
+                **{"first_air_date.gte": s, "first_air_date.lte": e})
+
+    _diag_query(tmdb, "movie watch_region+flatrate sort=primary_release_date", "movie",
+                watch_region=tmdb.region, with_watch_monetization_types="flatrate",
+                sort_by="primary_release_date.desc")
+    _diag_query(tmdb, "movie watch_region+flatrate sort=popularity", "movie",
+                watch_region=tmdb.region, with_watch_monetization_types="flatrate",
+                sort_by="popularity.desc")
+    _diag_query(tmdb, "movie release_type=4 + region + dates", "movie",
+                region=tmdb.region, with_release_type="4", sort_by="popularity.desc",
+                **{"release_date.gte": s, "release_date.lte": e})
+    _diag_query(tmdb, "movie dates only", "movie",
+                sort_by="popularity.desc",
+                **{"release_date.gte": s, "release_date.lte": e})
+
+    for lang in ("hi", "en"):
+        _diag_query(tmdb, f"tv lang={lang} watch_region+flatrate+dates", "tv",
+                    watch_region=tmdb.region, with_watch_monetization_types="flatrate",
+                    with_original_language=lang, sort_by="popularity.desc",
+                    **{"first_air_date.gte": s, "first_air_date.lte": e})
+        _diag_query(tmdb, f"movie lang={lang} watch_region+flatrate", "movie",
+                    watch_region=tmdb.region, with_watch_monetization_types="flatrate",
+                    with_original_language=lang, sort_by="primary_release_date.desc")
+
+
+# ---------------------------------------------------------------------------
 # Sample data (for local testing / bootstrap without a TMDB key)
 # ---------------------------------------------------------------------------
 
@@ -709,6 +770,8 @@ def main() -> int:
         up_sections = sample_sections(up_start)
     else:
         tmdb = TmdbClient(env_required("TMDB_API_KEY"), region)
+        if dry_run or env_bool("DIAGNOSTICS", False):
+            run_diagnostics(tmdb, out_start, up_end)
         out_sections = fetch_window_sections(tmdb, languages, out_start, out_end, min_popularity)
         up_sections = fetch_window_sections(tmdb, languages, up_start, up_end, min_popularity)
 
