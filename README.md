@@ -1,8 +1,30 @@
-# ReleaseBot
+# OTT Radar (ReleaseBot)
 
-A free weekly Telegram + email alert for Hindi and English theatrical + OTT releases.
+A free twice-weekly OTT release alert for India: Telegram push + email digest + an installable web dashboard (PWA).
 
-It runs every Friday at 8:00 AM IST using GitHub Actions, fetches release data from TMDB, sends an instant Telegram digest, and sends a visual email digest for archive/search.
+It runs **every Wednesday and Friday at 2:00 PM IST** using GitHub Actions, fetches OTT release data from TMDB, sends a Telegram digest, sends a visual email digest, and updates a GitHub Pages dashboard.
+
+## What You Get
+
+Each digest has two parts:
+
+- **Out Now** — releases from the run day until the day before the next run
+  (Wednesday covers Wed–Thu, Friday covers Fri–Tue: full coverage, no repeats)
+- **Coming Up** — a ~7-day forward preview so you always know what's landing next
+
+Both parts are split into three sections, grouped by streaming platform:
+
+- 🇮🇳 **Hindi OTT** — movies + shows
+- 🌍 **English OTT** — movies + shows
+- 🔥 **Popular (Other Languages)** — any-language releases above a popularity threshold (big Tamil / Telugu / Korean / Spanish titles surface automatically)
+
+## Delivery Channels
+
+| Channel | What |
+|---|---|
+| Telegram | Instant push at 2 PM IST |
+| Email | Visual HTML cards with posters, ratings, summaries, TMDB links |
+| **Dashboard (PWA)** | GitHub Pages site in `docs/` — poster grid, Out Now / Coming Up / Past Digests tabs, search, and platform / language / type filters. Installable on your phone via "Add to Home Screen". |
 
 ## What It Uses
 
@@ -10,17 +32,7 @@ It runs every Friday at 8:00 AM IST using GitHub Actions, fetches release data f
 - TMDB API: movie, show, release, rating, poster, and provider data
 - Telegram Bot API: instant push notification
 - SMTP email: searchable archive in your inbox
-
-## Digest Layout
-
-Both Telegram and email are split into clear sections:
-
-- Hindi theatrical releases
-- Hindi OTT releases, grouped by streaming platform
-- English theatrical releases
-- English OTT releases, grouped by streaming platform
-
-The email version also uses visual cards with posters, ratings, dates, summaries, platform names, and TMDB links.
+- GitHub Pages: hosts the dashboard from the `docs/` folder
 
 ## Setup
 
@@ -38,110 +50,56 @@ The email version also uses visual cards with posters, ratings, dates, summaries
 
    `https://api.telegram.org/bot<BOT_TOKEN>/getUpdates`
 
-3. Find:
-
-   `"chat":{"id":123456789`
-
-4. Copy that number as your chat ID.
+3. Find `"chat":{"id":123456789` and copy that number as your chat ID.
 
 ### 3. Get a TMDB API key
 
 1. Create a free TMDB account: https://www.themoviedb.org/
-2. Go to Settings > API.
-3. Create an API key.
+2. Go to Settings > API and copy the API key (v3).
 
-### 4. Set up email sending
+### 4. Add GitHub repository secrets
 
-For Gmail:
-
-1. Enable 2-Step Verification on your Google account.
-2. Create an App Password: https://myaccount.google.com/apppasswords
-3. Use that 16-character app password as `SMTP_PASSWORD`.
-
-Do not use your normal Gmail password.
-
-The default workflow is configured for Gmail SMTP:
-
-- `SMTP_HOST=smtp.gmail.com`
-- `SMTP_PORT=587`
-
-For another email provider, change these values in `.github/workflows/weekly-releasebot.yml`.
-
-### 5. Add GitHub secrets
-
-In your GitHub repo:
-
-Settings > Secrets and variables > Actions > New repository secret
-
-Add:
+Repo Settings > Secrets and variables > Actions:
 
 - `TMDB_API_KEY`
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
-- `SMTP_USERNAME` - your email login, for Gmail this is your Gmail address
-- `SMTP_PASSWORD` - your email app password
-- `EMAIL_FROM` - sender address, usually same as `SMTP_USERNAME`
-- `EMAIL_TO` - recipient address
+- `SMTP_USERNAME`, `SMTP_PASSWORD` (Gmail app password), `EMAIL_FROM`, `EMAIL_TO`
 
-### 6. Push to GitHub
+### 5. Enable GitHub Pages (for the dashboard)
 
-The workflow in `.github/workflows/weekly-releasebot.yml` will run every Friday at 8:00 AM IST.
+Repo Settings > Pages > Source: **Deploy from a branch** > Branch: `main`, folder: `/docs`.
 
-You can also run it manually:
+Your dashboard will be at `https://<username>.github.io/<repo>/`.
 
-Actions > Weekly ReleaseBot > Run workflow
+### 6. Done
 
-## Local Test
+The workflow in `.github/workflows/ott-radar.yml` runs automatically Wednesday and Friday at 2:00 PM IST. You can also trigger it manually from the Actions tab (with an optional dry-run flag that updates the dashboard without sending Telegram/email).
 
-Create a local `.env` file or export these variables:
+## Configuration (env vars in the workflow)
 
-```bash
-export TMDB_API_KEY="your_tmdb_api_key"
-export TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
-export TELEGRAM_CHAT_ID="your_chat_id"
-export EMAIL_ENABLED="true"
-export SMTP_HOST="smtp.gmail.com"
-export SMTP_PORT="587"
-export SMTP_USERNAME="your_email@gmail.com"
-export SMTP_PASSWORD="your_gmail_app_password"
-export EMAIL_FROM="your_email@gmail.com"
-export EMAIL_TO="recipient_email@gmail.com"
-```
+| Variable | Default | Meaning |
+|---|---|---|
+| `REGION` | `IN` | TMDB watch region |
+| `LANGUAGES` | `hi,en` | Dedicated language sections |
+| `POPULAR_MIN_POPULARITY` | `25` | Threshold for the any-language Popular section |
+| `RELEASE_TIMEZONE` | `Asia/Kolkata` | Timezone used for date windows |
+| `DRY_RUN` | `false` | Skip Telegram/email, still write dashboard data |
+| `USE_SAMPLE_DATA` | `false` | Generate sample data without a TMDB key (local testing) |
+| `OUTPUT_DIR` | `docs` | Where `data.json` / `history.json` are written |
+| `DASHBOARD_URL` | — | Link included in Telegram/email digests |
 
-Then run:
+## Local testing
 
 ```bash
 pip install -r requirements.txt
-python releasebot.py
+
+# No keys needed — sample data, nothing sent:
+DRY_RUN=true USE_SAMPLE_DATA=true python releasebot.py
+
+# Real TMDB data, nothing sent:
+DRY_RUN=true TMDB_API_KEY=... python releasebot.py
+
+# Preview the dashboard:
+cd docs && python -m http.server 8000   # open http://localhost:8000
 ```
-
-## Configuration
-
-The workflow currently uses:
-
-- `REGION=IN`
-- `LANGUAGES=hi,en`
-- `DAYS_AHEAD=7`
-- `RELEASE_TIMEZONE=Asia/Kolkata`
-- `TELEGRAM_ENABLED=true`
-- `EMAIL_ENABLED=true`
-
-Change these in `.github/workflows/weekly-releasebot.yml` if needed.
-
-If you want only email and no Telegram, set:
-
-```yaml
-TELEGRAM_ENABLED: "false"
-EMAIL_ENABLED: "true"
-```
-
-If you want only Telegram and no email, set:
-
-```yaml
-TELEGRAM_ENABLED: "true"
-EMAIL_ENABLED: "false"
-```
-
-## Notes
-
-TMDB is strong for theatrical releases and general streaming availability. Exact OTT "newly added this week" data depends on what TMDB has for each title and provider, so treat OTT results as a practical weekly digest rather than a perfect provider catalog.

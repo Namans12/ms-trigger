@@ -1,0 +1,198 @@
+[
+  {
+    "generated_at": "2026-07-15T02:46:58+05:30",
+    "region": "IN",
+    "out_now": {
+      "start": "2026-07-15",
+      "end": "2026-07-16",
+      "sections": {
+        "hindi": [
+          {
+            "title": "Sample Hindi Thriller",
+            "media_type": "movie",
+            "language": "hi",
+            "release_date": "2026-07-15",
+            "rating": 7.4,
+            "popularity": 80,
+            "overview": "Sample overview for Sample Hindi Thriller. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Sample Hindi Drama S2",
+            "media_type": "tv",
+            "language": "hi",
+            "release_date": "2026-07-16",
+            "rating": 8.1,
+            "popularity": 65,
+            "overview": "Sample overview for Sample Hindi Drama S2. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "Amazon Prime Video"
+            ]
+          }
+        ],
+        "english": [
+          {
+            "title": "Sample English Blockbuster",
+            "media_type": "movie",
+            "language": "en",
+            "release_date": "2026-07-15",
+            "rating": 7.9,
+            "popularity": 120,
+            "overview": "Sample overview for Sample English Blockbuster. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "JioHotstar"
+            ]
+          },
+          {
+            "title": "Sample English Limited Series",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-07-16",
+            "rating": 8.4,
+            "popularity": 90,
+            "overview": "Sample overview for Sample English Limited Series. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "Apple TV+"
+            ]
+          }
+        ],
+        "popular": [
+          {
+            "title": "Sample Telugu Action Epic",
+            "media_type": "movie",
+            "language": "te",
+            "release_date": "2026-07-15",
+            "rating": 8.0,
+            "popularity": 150,
+            "overview": "Sample overview for Sample Telugu Action Epic. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Sample Korean Survival Show",
+            "media_type": "tv",
+            "language": "ko",
+            "release_date": "2026-07-16",
+            "rating": 8.6,
+            "popularity": 200,
+            "overview": "Sample overview for Sample Korean Survival Show. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "Netflix"
+            ]
+          }
+        ]
+      }
+    },
+    "coming_up": {
+      "start": "2026-07-17",
+      "end": "2026-07-23",
+      "sections": {
+        "hindi": [
+          {
+            "title": "Sample Hindi Thriller",
+            "media_type": "movie",
+            "language": "hi",
+            "release_date": "2026-07-17",
+            "rating": 7.4,
+            "popularity": 80,
+            "overview": "Sample overview for Sample Hindi Thriller. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Sample Hindi Drama S2",
+            "media_type": "tv",
+            "language": "hi",
+            "release_date": "2026-07-18",
+            "rating": 8.1,
+            "popularity": 65,
+            "overview": "Sample overview for Sample Hindi Drama S2. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "Amazon Prime Video"
+            ]
+          }
+        ],
+        "english": [
+          {
+            "title": "Sample English Blockbuster",
+            "media_type": "movie",
+            "language": "en",
+            "release_date": "2026-07-17",
+            "rating": 7.9,
+            "popularity": 120,
+            "overview": "Sample overview for Sample English Blockbuster. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "JioHotstar"
+            ]
+          },
+          {
+            "title": "Sample English Limited Series",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-07-18",
+            "rating": 8.4,
+            "popularity": 90,
+            "overview": "Sample overview for Sample English Limited Series. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "Apple TV+"
+            ]
+          }
+        ],
+        "popular": [
+          {
+            "title": "Sample Telugu Action Epic",
+            "media_type": "movie",
+            "language": "te",
+            "release_date": "2026-07-17",
+            "rating": 8.0,
+            "popularity": 150,
+            "overview": "Sample overview for Sample Telugu Action Epic. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Sample Korean Survival Show",
+            "media_type": "tv",
+            "language": "ko",
+            "release_date": "2026-07-18",
+            "rating": 8.6,
+            "popularity": 200,
+            "overview": "Sample overview for Sample Korean Survival Show. Replace with real TMDB data on the next scheduled run.",
+            "tmdb_url": "https://www.themoviedb.org/",
+            "poster_url": null,
+            "providers": [
+              "Netflix"
+            ]
+          }
+        ]
+      }
+    }
+  }
+]

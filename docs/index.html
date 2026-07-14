@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>OTT Radar</title>
+  <meta name="description" content="Twice-weekly OTT release radar for India — Hindi, English and popular releases in every language.">
+  <meta name="theme-color" content="#0f1117">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">📡</span>
+      <div>
+        <h1>OTT Radar</h1>
+        <p id="subtitle">Hindi · English · Popular — OTT releases for India</p>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="out_now">🟢 Out Now</button>
+      <button class="tab" data-tab="coming_up">🔵 Coming Up</button>
+      <button class="tab" data-tab="history">🗂 Past Digests</button>
+    </nav>
+  </header>
+
+  <section class="filters" id="filters">
+    <input type="search" id="search" placeholder="Search titles…" autocomplete="off">
+    <div class="chip-row" id="section-chips">
+      <button class="chip active" data-section="all">All</button>
+      <button class="chip" data-section="hindi">🇮🇳 Hindi</button>
+      <button class="chip" data-section="english">🌍 English</button>
+      <button class="chip" data-section="popular">🔥 Popular</button>
+    </div>
+    <div class="chip-row">
+      <select id="platform-filter"><option value="all">All platforms</option></select>
+      <select id="type-filter">
+        <option value="all">Movies + Shows</option>
+        <option value="movie">Movies only</option>
+        <option value="tv">Shows only</option>
+      </select>
+    </div>
+  </section>
+
+  <main id="content">
+    <p class="empty">Loading…</p>
+  </main>
+
+  <footer>
+    <span id="generated-at"></span>
+    <span>Data: <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a></span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

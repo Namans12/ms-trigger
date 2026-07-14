@@ -1,12 +1,29 @@
+"""OTT Radar (ReleaseBot).
+
+Twice-weekly OTT release digest for India:
+  - Hindi OTT releases (movies + shows)
+  - English OTT releases (movies + shows)
+  - Popular releases in any other language above a popularity threshold
+
+Runs Wednesday and Friday at 2:00 PM IST via GitHub Actions.
+Each digest has two parts:
+  - "Out Now"   : releases from today until the day before the next run
+  - "Coming Up" : releases in the ~7 days after that (forward preview)
+
+Delivery: Telegram push + HTML email + JSON feed for the GitHub Pages PWA.
+"""
+
 from __future__ import annotations
 
+import json
 import os
 import smtplib
 import sys
 from collections import defaultdict
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from dataclasses import asdict, dataclass
+from datetime import date, datetime, timedelta
 from email.message import EmailMessage
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -17,6 +34,21 @@ TMDB_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 TELEGRAM_BASE_URL = "https://api.telegram.org"
 
+# GitHub Actions runs Wednesday (2) and Friday (4). Monday is 0.
+TRIGGER_WEEKDAYS = (2, 4)
+
+SECTION_ORDER = ("hindi", "english", "popular")
+SECTION_LABELS = {
+    "hindi": "Hindi OTT",
+    "english": "English OTT",
+    "popular": "Popular (Other Languages)",
+}
+SECTION_EMOJI = {
+    "hindi": "🇮🇳",
+    "english": "🌍",
+    "popular": "🔥",
+}
+
 
 @dataclass(frozen=True)
 class ReleaseItem:
@@ -25,6 +57,7 @@ class ReleaseItem:
     language: str
     release_date: str
     rating: float | None
+    popularity: float
     overview: str
     tmdb_url: str
     poster_url: str | None
@@ -93,6 +126,7 @@ def normalize_movie(raw: dict[str, Any], providers: tuple[str, ...] = ()) -> Rel
         language=raw.get("original_language") or "unknown",
         release_date=raw.get("release_date") or "TBA",
         rating=raw.get("vote_average"),
+        popularity=float(raw.get("popularity") or 0),
         overview=raw.get("overview") or "",
         tmdb_url=tmdb_item_url("movie", raw["id"]),
         poster_url=poster_url(raw.get("poster_path")),
@@ -107,6 +141,7 @@ def normalize_tv(raw: dict[str, Any], providers: tuple[str, ...] = ()) -> Releas
         language=raw.get("original_language") or "unknown",
         release_date=raw.get("first_air_date") or "TBA",
         rating=raw.get("vote_average"),
+        popularity=float(raw.get("popularity") or 0),
         overview=raw.get("overview") or "",
         tmdb_url=tmdb_item_url("tv", raw["id"]),
         poster_url=poster_url(raw.get("poster_path")),
@@ -117,7 +152,7 @@ def normalize_tv(raw: dict[str, Any], providers: tuple[str, ...] = ()) -> Releas
 def dedupe(items: list[ReleaseItem]) -> list[ReleaseItem]:
     seen: set[tuple[str, str, str]] = set()
     unique: list[ReleaseItem] = []
-    for item in sorted(items, key=lambda x: (x.release_date, -float(x.rating or 0), x.title)):
+    for item in sorted(items, key=lambda x: (x.release_date, -x.popularity, x.title)):
         key = (item.media_type, item.title.lower(), item.release_date)
         if key not in seen:
             seen.add(key)
@@ -125,73 +160,184 @@ def dedupe(items: list[ReleaseItem]) -> list[ReleaseItem]:
     return unique
 
 
-def fetch_theatrical_releases(
+# ---------------------------------------------------------------------------
+# Scheduling windows
+# ---------------------------------------------------------------------------
+
+
+def next_trigger_day(today: date) -> date:
+    """First Wednesday or Friday strictly after `today`."""
+    for offset in range(1, 8):
+        candidate = today + timedelta(days=offset)
+        if candidate.weekday() in TRIGGER_WEEKDAYS:
+            return candidate
+    raise RuntimeError("unreachable")
+
+
+def compute_windows(today: date) -> dict[str, tuple[date, date]]:
+    """Out Now: today .. day before next run. Coming Up: next run .. +6 days."""
+    upcoming = next_trigger_day(today)
+    return {
+        "out_now": (today, upcoming - timedelta(days=1)),
+        "coming_up": (upcoming, upcoming + timedelta(days=6)),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Fetching
+# ---------------------------------------------------------------------------
+
+
+def fetch_ott_movies(
     tmdb: TmdbClient,
-    languages: list[str],
     start_date: str,
     end_date: str,
-) -> list[ReleaseItem]:
-    items: list[ReleaseItem] = []
-    for language in languages:
-        movies = tmdb.discover(
-            "movie",
-            region=tmdb.region,
-            with_original_language=language,
-            with_release_type="2|3",
-            **{
-                "release_date.gte": start_date,
-                "release_date.lte": end_date,
-                "sort_by": "popularity.desc",
-            },
-        )
-        items.extend(normalize_movie(movie) for movie in movies)
-    return dedupe(items)[:12]
+    language: str | None = None,
+) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {
+        "region": tmdb.region,
+        "watch_region": tmdb.region,
+        "with_watch_monetization_types": "flatrate",
+        "with_release_type": "4",
+        "release_date.gte": start_date,
+        "release_date.lte": end_date,
+        "sort_by": "popularity.desc",
+    }
+    if language:
+        params["with_original_language"] = language
+    return tmdb.discover("movie", **params)
 
 
-def fetch_ott_releases(
+def fetch_ott_shows(
     tmdb: TmdbClient,
-    languages: list[str],
     start_date: str,
     end_date: str,
+    language: str | None = None,
+) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {
+        "watch_region": tmdb.region,
+        "with_watch_monetization_types": "flatrate",
+        "first_air_date.gte": start_date,
+        "first_air_date.lte": end_date,
+        "sort_by": "popularity.desc",
+    }
+    if language:
+        params["with_original_language"] = language
+    return tmdb.discover("tv", **params)
+
+
+def attach_providers(
+    tmdb: TmdbClient,
+    raws: list[dict[str, Any]],
+    media_type: str,
+    limit: int,
+    require_providers: bool,
 ) -> list[ReleaseItem]:
+    normalize = normalize_movie if media_type == "movie" else normalize_tv
     items: list[ReleaseItem] = []
+    for raw in raws[:limit]:
+        providers = tmdb.watch_providers(media_type, raw["id"])
+        if providers or not require_providers:
+            items.append(normalize(raw, providers))
+    return items
 
-    for language in languages:
-        digital_movies = tmdb.discover(
-            "movie",
-            region=tmdb.region,
-            watch_region=tmdb.region,
-            with_watch_monetization_types="flatrate",
-            with_original_language=language,
-            with_release_type="4",
-            **{
-                "release_date.gte": start_date,
-                "release_date.lte": end_date,
-                "sort_by": "popularity.desc",
-            },
-        )
-        for movie in digital_movies[:15]:
-            providers = tmdb.watch_providers("movie", movie["id"])
-            if providers:
-                items.append(normalize_movie(movie, providers))
 
-        shows = tmdb.discover(
-            "tv",
-            watch_region=tmdb.region,
-            with_watch_monetization_types="flatrate",
-            with_original_language=language,
-            **{
-                "first_air_date.gte": start_date,
-                "first_air_date.lte": end_date,
-                "sort_by": "popularity.desc",
-            },
-        )
-        for show in shows[:15]:
-            providers = tmdb.watch_providers("tv", show["id"])
-            if providers:
-                items.append(normalize_tv(show, providers))
-
+def fetch_language_ott(
+    tmdb: TmdbClient,
+    language: str,
+    start_date: str,
+    end_date: str,
+    per_type_limit: int = 15,
+) -> list[ReleaseItem]:
+    movies = fetch_ott_movies(tmdb, start_date, end_date, language)
+    shows = fetch_ott_shows(tmdb, start_date, end_date, language)
+    items = attach_providers(tmdb, movies, "movie", per_type_limit, require_providers=True)
+    items += attach_providers(tmdb, shows, "tv", per_type_limit, require_providers=True)
     return dedupe(items)[:20]
+
+
+def fetch_popular_ott(
+    tmdb: TmdbClient,
+    exclude_languages: list[str],
+    start_date: str,
+    end_date: str,
+    min_popularity: float,
+    per_type_limit: int = 15,
+) -> list[ReleaseItem]:
+    """Any-language OTT releases above a popularity threshold (Tamil, Telugu, Korean...)."""
+    movies = [
+        raw
+        for raw in fetch_ott_movies(tmdb, start_date, end_date)
+        if raw.get("original_language") not in exclude_languages
+        and float(raw.get("popularity") or 0) >= min_popularity
+    ]
+    shows = [
+        raw
+        for raw in fetch_ott_shows(tmdb, start_date, end_date)
+        if raw.get("original_language") not in exclude_languages
+        and float(raw.get("popularity") or 0) >= min_popularity
+    ]
+    items = attach_providers(tmdb, movies, "movie", per_type_limit, require_providers=True)
+    items += attach_providers(tmdb, shows, "tv", per_type_limit, require_providers=True)
+    return dedupe(items)[:20]
+
+
+def fetch_window_sections(
+    tmdb: TmdbClient,
+    languages: list[str],
+    start: date,
+    end: date,
+    min_popularity: float,
+) -> dict[str, list[ReleaseItem]]:
+    start_s, end_s = start.isoformat(), end.isoformat()
+    sections: dict[str, list[ReleaseItem]] = {}
+    label_by_language = {"hi": "hindi", "en": "english"}
+    for language in languages:
+        section = label_by_language.get(language, language)
+        sections[section] = fetch_language_ott(tmdb, language, start_s, end_s)
+    sections["popular"] = fetch_popular_ott(tmdb, languages, start_s, end_s, min_popularity)
+    return sections
+
+
+# ---------------------------------------------------------------------------
+# Sample data (for local testing / bootstrap without a TMDB key)
+# ---------------------------------------------------------------------------
+
+
+def sample_sections(start: date) -> dict[str, list[ReleaseItem]]:
+    def item(title: str, media_type: str, language: str, offset: int, provider: str, rating: float, pop: float) -> ReleaseItem:
+        return ReleaseItem(
+            title=title,
+            media_type=media_type,
+            language=language,
+            release_date=(start + timedelta(days=offset)).isoformat(),
+            rating=rating,
+            popularity=pop,
+            overview=f"Sample overview for {title}. Replace with real TMDB data on the next scheduled run.",
+            tmdb_url="https://www.themoviedb.org/",
+            poster_url=None,
+            providers=(provider,),
+        )
+
+    return {
+        "hindi": [
+            item("Sample Hindi Thriller", "movie", "hi", 0, "Netflix", 7.4, 80),
+            item("Sample Hindi Drama S2", "tv", "hi", 1, "Amazon Prime Video", 8.1, 65),
+        ],
+        "english": [
+            item("Sample English Blockbuster", "movie", "en", 0, "JioHotstar", 7.9, 120),
+            item("Sample English Limited Series", "tv", "en", 1, "Apple TV+", 8.4, 90),
+        ],
+        "popular": [
+            item("Sample Telugu Action Epic", "movie", "te", 0, "Netflix", 8.0, 150),
+            item("Sample Korean Survival Show", "tv", "ko", 1, "Netflix", 8.6, 200),
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Formatting helpers
+# ---------------------------------------------------------------------------
 
 
 def rating_text(rating: float | None) -> str:
@@ -200,137 +346,98 @@ def rating_text(rating: float | None) -> str:
     return f"{rating:.1f}/10"
 
 
-def item_line(item: ReleaseItem) -> str:
-    date = item.release_date if item.release_date != "TBA" else "date TBA"
-    kind = "Movie" if item.media_type == "movie" else "Show"
-    return f"• <b>{escape_html(item.title)}</b> ({kind}, {date})\n  ⭐ {rating_text(item.rating)} | <a href=\"{item.tmdb_url}\">TMDB</a>"
-
-
-def item_plain_line(item: ReleaseItem) -> str:
-    date = item.release_date if item.release_date != "TBA" else "date TBA"
-    kind = "Movie" if item.media_type == "movie" else "Show"
-    return f"- {item.title} ({kind}, {date})\n  Rating: {rating_text(item.rating)} | TMDB: {item.tmdb_url}"
-
-
 def escape_html(value: str) -> str:
     return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def language_label(language: str) -> str:
-    labels = {
-        "hi": "Hindi",
-        "en": "English",
-    }
-    return labels.get(language, language.upper())
+def item_line(item: ReleaseItem) -> str:
+    d = item.release_date if item.release_date != "TBA" else "date TBA"
+    kind = "Movie" if item.media_type == "movie" else "Show"
+    return (
+        f"• <b>{escape_html(item.title)}</b> ({kind}, {d})\n"
+        f"  ⭐ {rating_text(item.rating)} | <a href=\"{item.tmdb_url}\">TMDB</a>"
+    )
 
 
-def section_items(items: list[ReleaseItem], language: str) -> list[ReleaseItem]:
-    return [item for item in items if item.language == language]
+def item_plain_line(item: ReleaseItem) -> str:
+    d = item.release_date if item.release_date != "TBA" else "date TBA"
+    kind = "Movie" if item.media_type == "movie" else "Show"
+    return f"- {item.title} ({kind}, {d})\n  Rating: {rating_text(item.rating)} | TMDB: {item.tmdb_url}"
 
 
-def add_telegram_section(lines: list[str], title: str, items: list[ReleaseItem]) -> None:
-    lines.append(title)
-    if items:
-        lines.extend(item_line(item) for item in items)
-    else:
-        lines.append("No releases found for this section.")
-    lines.append("")
-
-
-def add_telegram_ott_section(lines: list[str], title: str, items: list[ReleaseItem]) -> None:
-    lines.append(title)
-    if not items:
-        lines.append("No OTT releases found for this section.")
-        lines.append("")
-        return
-
+def group_by_provider(items: list[ReleaseItem]) -> dict[str, list[ReleaseItem]]:
     grouped: dict[str, list[ReleaseItem]] = defaultdict(list)
     for item in items:
         provider_key = ", ".join(item.providers[:2]) if item.providers else "Streaming"
         grouped[provider_key].append(item)
-
-    for provider, provider_items in sorted(grouped.items()):
-        lines.append(f"<b>{escape_html(provider)}</b>")
-        lines.extend(item_line(item) for item in provider_items[:6])
-    lines.append("")
+    return grouped
 
 
-def format_message(
-    theatrical: list[ReleaseItem],
-    ott: list[ReleaseItem],
-    start_date: str,
-    end_date: str,
-    region: str,
-) -> str:
+def add_telegram_sections(lines: list[str], sections: dict[str, list[ReleaseItem]]) -> None:
+    for section in SECTION_ORDER:
+        items = sections.get(section, [])
+        lines.append(f"{SECTION_EMOJI[section]} <b>{SECTION_LABELS[section]}</b>")
+        if not items:
+            lines.append("Nothing found for this section.")
+            lines.append("")
+            continue
+        for provider, provider_items in sorted(group_by_provider(items).items()):
+            lines.append(f"<b>{escape_html(provider)}</b>")
+            lines.extend(item_line(item) for item in provider_items[:6])
+        lines.append("")
+
+
+def format_message(digest: dict[str, Any]) -> str:
     lines = [
-        "🤖 <b>ReleaseBot</b>",
-        f"New Hindi + English releases for <b>{region}</b>",
-        f"<b>{start_date}</b> to <b>{end_date}</b>",
+        "📡 <b>OTT Radar</b>",
+        f"OTT releases for <b>{digest['region']}</b> — Hindi, English + Popular",
+        "",
+        f"🟢 <b>OUT NOW</b> ({digest['out_now']['start']} → {digest['out_now']['end']})",
         "",
     ]
-
-    for language in ("hi", "en"):
-        label = language_label(language)
-        add_telegram_section(
-            lines,
-            f"🎬 <b>{label} Theatrical Releases</b>",
-            section_items(theatrical, language),
-        )
-        add_telegram_ott_section(
-            lines,
-            f"📺 <b>{label} OTT Releases</b>",
-            section_items(ott, language),
-        )
-
+    add_telegram_sections(lines, digest["out_now"]["sections"])
+    lines.append(f"🔵 <b>COMING UP</b> ({digest['coming_up']['start']} → {digest['coming_up']['end']})")
+    lines.append("")
+    add_telegram_sections(lines, digest["coming_up"]["sections"])
+    if digest.get("dashboard_url"):
+        lines.append(f"🌐 <a href=\"{digest['dashboard_url']}\">Open the OTT Radar dashboard</a>")
     return "\n".join(lines).strip()
 
 
-def format_plain_message(
-    theatrical: list[ReleaseItem],
-    ott: list[ReleaseItem],
-    start_date: str,
-    end_date: str,
-    region: str,
-) -> str:
-    lines = [
-        "ReleaseBot",
-        f"New Hindi + English releases for {region}",
-        f"{start_date} to {end_date}",
-        "",
-    ]
-
-    for language in ("hi", "en"):
-        label = language_label(language)
-        lines.append(f"{label} Theatrical Releases")
-        language_theatrical = section_items(theatrical, language)
-        if language_theatrical:
-            lines.extend(item_plain_line(item) for item in language_theatrical)
-        else:
-            lines.append("No releases found for this section.")
-
-        lines.extend(["", f"{label} OTT Releases"])
-        language_ott = section_items(ott, language)
-        if not language_ott:
-            lines.append("No OTT releases found for this section.")
+def add_plain_sections(lines: list[str], sections: dict[str, list[ReleaseItem]]) -> None:
+    for section in SECTION_ORDER:
+        items = sections.get(section, [])
+        lines.append(SECTION_LABELS[section])
+        if not items:
+            lines.append("Nothing found for this section.")
             lines.append("")
             continue
-
-        grouped: dict[str, list[ReleaseItem]] = defaultdict(list)
-        for item in language_ott:
-            provider_key = ", ".join(item.providers[:2]) if item.providers else "Streaming"
-            grouped[provider_key].append(item)
-
-        for provider, provider_items in sorted(grouped.items()):
+        for provider, provider_items in sorted(group_by_provider(items).items()):
             lines.append(f"\n{provider}")
             lines.extend(item_plain_line(item) for item in provider_items[:6])
         lines.append("")
 
+
+def format_plain_message(digest: dict[str, Any]) -> str:
+    lines = [
+        "OTT Radar",
+        f"OTT releases for {digest['region']} — Hindi, English + Popular",
+        "",
+        f"OUT NOW ({digest['out_now']['start']} to {digest['out_now']['end']})",
+        "",
+    ]
+    add_plain_sections(lines, digest["out_now"]["sections"])
+    lines.append(f"COMING UP ({digest['coming_up']['start']} to {digest['coming_up']['end']})")
+    lines.append("")
+    add_plain_sections(lines, digest["coming_up"]["sections"])
+    if digest.get("dashboard_url"):
+        lines.append(f"Dashboard: {digest['dashboard_url']}")
     return "\n".join(lines).strip()
 
 
 def email_item_card(item: ReleaseItem) -> str:
     kind = "Movie" if item.media_type == "movie" else "Show"
-    date = item.release_date if item.release_date != "TBA" else "Date TBA"
+    d = item.release_date if item.release_date != "TBA" else "Date TBA"
     providers = ", ".join(item.providers[:3]) if item.providers else ""
     overview = escape_html(item.overview[:220] + ("..." if len(item.overview) > 220 else ""))
     poster = (
@@ -350,7 +457,7 @@ def email_item_card(item: ReleaseItem) -> str:
         {poster}
         <div>
           <div style="font-size:16px;font-weight:700;color:#111827;">{escape_html(item.title)}</div>
-          <div style="font-size:13px;color:#6b7280;margin-top:4px;">{kind} · {date} · ⭐ {rating_text(item.rating)}</div>
+          <div style="font-size:13px;color:#6b7280;margin-top:4px;">{kind} · {d} · ⭐ {rating_text(item.rating)}</div>
           {provider_html}
           {overview_html}
           <div style="margin-top:8px;"><a href="{item.tmdb_url}" style="color:#2563eb;text-decoration:none;font-weight:700;">Open on TMDB</a></div>
@@ -359,72 +466,64 @@ def email_item_card(item: ReleaseItem) -> str:
     """
 
 
-def email_section(title: str, items: list[ReleaseItem]) -> str:
-    if not items:
-        content = '<p style="color:#6b7280;margin-top:8px;">No releases found for this section.</p>'
-    else:
-        content = "\n".join(email_item_card(item) for item in items)
-    return f"""
-      <section style="margin-top:24px;">
-        <h2 style="font-size:20px;margin:0 0 8px;color:#111827;">{escape_html(title)}</h2>
-        {content}
-      </section>
-    """
-
-
-def email_ott_section(title: str, items: list[ReleaseItem]) -> str:
-    if not items:
-        return email_section(title, items)
-
-    grouped: dict[str, list[ReleaseItem]] = defaultdict(list)
-    for item in items:
-        provider_key = ", ".join(item.providers[:2]) if item.providers else "Streaming"
-        grouped[provider_key].append(item)
-
-    groups = []
-    for provider, provider_items in sorted(grouped.items()):
-        groups.append(
+def email_sections_html(sections: dict[str, list[ReleaseItem]]) -> str:
+    blocks: list[str] = []
+    for section in SECTION_ORDER:
+        items = sections.get(section, [])
+        title = f"{SECTION_EMOJI[section]} {SECTION_LABELS[section]}"
+        if not items:
+            content = '<p style="color:#6b7280;margin-top:8px;">Nothing found for this section.</p>'
+        else:
+            groups = []
+            for provider, provider_items in sorted(group_by_provider(items).items()):
+                groups.append(
+                    f"""
+                    <div style="margin-top:14px;">
+                      <h3 style="font-size:15px;margin:0 0 6px;color:#2563eb;">{escape_html(provider)}</h3>
+                      {"".join(email_item_card(item) for item in provider_items[:6])}
+                    </div>
+                    """
+                )
+            content = "".join(groups)
+        blocks.append(
             f"""
-            <div style="margin-top:14px;">
-              <h3 style="font-size:15px;margin:0 0 6px;color:#2563eb;">{escape_html(provider)}</h3>
-              {"".join(email_item_card(item) for item in provider_items[:6])}
-            </div>
+            <section style="margin-top:24px;">
+              <h2 style="font-size:20px;margin:0 0 8px;color:#111827;">{escape_html(title)}</h2>
+              {content}
+            </section>
             """
         )
-
-    return f"""
-      <section style="margin-top:24px;">
-        <h2 style="font-size:20px;margin:0 0 8px;color:#111827;">{escape_html(title)}</h2>
-        {"".join(groups)}
-      </section>
-    """
+    return "".join(blocks)
 
 
-def format_email_html(
-    theatrical: list[ReleaseItem],
-    ott: list[ReleaseItem],
-    start_date: str,
-    end_date: str,
-    region: str,
-) -> str:
-    sections = []
-    for language in ("hi", "en"):
-        label = language_label(language)
-        sections.append(email_section(f"🎬 {label} Theatrical Releases", section_items(theatrical, language)))
-        sections.append(email_ott_section(f"📺 {label} OTT Releases", section_items(ott, language)))
-
+def format_email_html(digest: dict[str, Any]) -> str:
+    dashboard_html = ""
+    if digest.get("dashboard_url"):
+        dashboard_html = (
+            f'<p style="margin:14px 0 0;"><a href="{digest["dashboard_url"]}" '
+            'style="color:#2563eb;font-weight:700;text-decoration:none;">🌐 Open the OTT Radar dashboard</a></p>'
+        )
     return f"""<!doctype html>
 <html>
   <body style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;background:#f3f4f6;margin:0;padding:24px;">
     <div style="max-width: 760px; margin: 0 auto;background:#ffffff;border-radius:18px;padding:24px;">
-      <h1 style="font-size:28px;margin:0;color:#111827;">🤖 ReleaseBot</h1>
+      <h1 style="font-size:28px;margin:0;color:#111827;">📡 OTT Radar</h1>
       <p style="font-size:15px;color:#4b5563;margin:6px 0 0;">
-        New Hindi + English releases for <b>{escape_html(region)}</b>, <b>{start_date}</b> to <b>{end_date}</b>
+        OTT releases for <b>{escape_html(digest['region'])}</b> — Hindi, English + Popular
       </p>
-      {''.join(sections)}
+      {dashboard_html}
+      <h2 style="font-size:22px;margin:26px 0 0;color:#047857;">🟢 Out Now ({digest['out_now']['start']} → {digest['out_now']['end']})</h2>
+      {email_sections_html(digest['out_now']['sections'])}
+      <h2 style="font-size:22px;margin:26px 0 0;color:#1d4ed8;">🔵 Coming Up ({digest['coming_up']['start']} → {digest['coming_up']['end']})</h2>
+      {email_sections_html(digest['coming_up']['sections'])}
     </div>
   </body>
 </html>"""
+
+
+# ---------------------------------------------------------------------------
+# Delivery
+# ---------------------------------------------------------------------------
 
 
 def split_telegram_message(message: str, limit: int = 3900) -> list[str]:
@@ -452,7 +551,7 @@ def send_telegram_message(bot_token: str, chat_id: str, message: str) -> None:
                 "chat_id": chat_id,
                 "text": part,
                 "parse_mode": "HTML",
-                "disable_web_page_preview": False,
+                "disable_web_page_preview": True,
             },
             timeout=30,
         )
@@ -483,73 +582,124 @@ def send_email_message(
         server.send_message(message)
 
 
+# ---------------------------------------------------------------------------
+# JSON feed for the PWA dashboard
+# ---------------------------------------------------------------------------
+
+
+def sections_to_json(sections: dict[str, list[ReleaseItem]]) -> dict[str, list[dict[str, Any]]]:
+    return {
+        section: [asdict(item) | {"providers": list(item.providers)} for item in items]
+        for section, items in sections.items()
+    }
+
+
+def write_dashboard_data(digest: dict[str, Any], output_dir: Path, history_limit: int = 12) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    data = {
+        "generated_at": digest["generated_at"],
+        "region": digest["region"],
+        "out_now": {
+            "start": digest["out_now"]["start"],
+            "end": digest["out_now"]["end"],
+            "sections": sections_to_json(digest["out_now"]["sections"]),
+        },
+        "coming_up": {
+            "start": digest["coming_up"]["start"],
+            "end": digest["coming_up"]["end"],
+            "sections": sections_to_json(digest["coming_up"]["sections"]),
+        },
+    }
+    (output_dir / "data.json").write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    history_path = output_dir / "history.json"
+    history: list[dict[str, Any]] = []
+    if history_path.exists():
+        try:
+            history = json.loads(history_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            history = []
+    history = [entry for entry in history if entry.get("generated_at") != data["generated_at"]]
+    history.insert(0, data)
+    history_path.write_text(json.dumps(history[:history_limit], indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
 def main() -> int:
-    tmdb_api_key = env_required("TMDB_API_KEY")
-    telegram_enabled = env_bool("TELEGRAM_ENABLED", True)
-    email_enabled = env_bool("EMAIL_ENABLED", False)
-
-    if not telegram_enabled and not email_enabled:
-        raise RuntimeError("No delivery channel enabled. Enable TELEGRAM_ENABLED or EMAIL_ENABLED.")
-
-    telegram_bot_token = ""
-    telegram_chat_id = ""
-    if telegram_enabled:
-        telegram_bot_token = env_required("TELEGRAM_BOT_TOKEN")
-        telegram_chat_id = env_required("TELEGRAM_CHAT_ID")
-
-    smtp_host = ""
-    smtp_port = 587
-    smtp_username = ""
-    smtp_password = ""
-    email_from = ""
-    email_to = ""
-    if email_enabled:
-        smtp_host = env_required("SMTP_HOST")
-        smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        smtp_username = env_required("SMTP_USERNAME")
-        smtp_password = env_required("SMTP_PASSWORD")
-        email_from = os.getenv("EMAIL_FROM", smtp_username)
-        email_to = env_required("EMAIL_TO")
+    dry_run = env_bool("DRY_RUN", False)
+    use_sample_data = env_bool("USE_SAMPLE_DATA", False)
+    telegram_enabled = env_bool("TELEGRAM_ENABLED", True) and not dry_run
+    email_enabled = env_bool("EMAIL_ENABLED", False) and not dry_run
 
     region = os.getenv("REGION", "IN")
     languages = env_list("LANGUAGES", "hi,en")
-    days_ahead = int(os.getenv("DAYS_AHEAD", "7"))
+    min_popularity = float(os.getenv("POPULAR_MIN_POPULARITY", "25"))
     timezone = ZoneInfo(os.getenv("RELEASE_TIMEZONE", "Asia/Kolkata"))
+    dashboard_url = os.getenv("DASHBOARD_URL", "")
+    output_dir = Path(os.getenv("OUTPUT_DIR", "docs"))
 
-    start = datetime.now(timezone).date()
-    end = start + timedelta(days=days_ahead - 1)
+    now = datetime.now(timezone)
+    windows = compute_windows(now.date())
+    out_start, out_end = windows["out_now"]
+    up_start, up_end = windows["coming_up"]
 
-    tmdb = TmdbClient(tmdb_api_key, region)
-    theatrical = fetch_theatrical_releases(tmdb, languages, start.isoformat(), end.isoformat())
-    ott = fetch_ott_releases(tmdb, languages, start.isoformat(), end.isoformat())
+    if use_sample_data:
+        out_sections = sample_sections(out_start)
+        up_sections = sample_sections(up_start)
+    else:
+        tmdb = TmdbClient(env_required("TMDB_API_KEY"), region)
+        out_sections = fetch_window_sections(tmdb, languages, out_start, out_end, min_popularity)
+        up_sections = fetch_window_sections(tmdb, languages, up_start, up_end, min_popularity)
 
-    message = format_message(theatrical, ott, start.isoformat(), end.isoformat(), region)
-    plain_message = format_plain_message(theatrical, ott, start.isoformat(), end.isoformat(), region)
-    sent_channels: list[str] = []
+    digest: dict[str, Any] = {
+        "generated_at": now.isoformat(timespec="seconds"),
+        "region": region,
+        "dashboard_url": dashboard_url,
+        "out_now": {"start": out_start.isoformat(), "end": out_end.isoformat(), "sections": out_sections},
+        "coming_up": {"start": up_start.isoformat(), "end": up_end.isoformat(), "sections": up_sections},
+    }
+
+    message = format_message(digest)
+    plain_message = format_plain_message(digest)
+
+    write_dashboard_data(digest, output_dir)
+    sent_channels: list[str] = [f"dashboard JSON ({output_dir}/data.json)"]
 
     if telegram_enabled:
-        send_telegram_message(telegram_bot_token, telegram_chat_id, message)
+        send_telegram_message(env_required("TELEGRAM_BOT_TOKEN"), env_required("TELEGRAM_CHAT_ID"), message)
         sent_channels.append("Telegram")
 
     if email_enabled:
-        subject = f"ReleaseBot: Hindi + English releases, {start.isoformat()} to {end.isoformat()}"
+        subject = f"OTT Radar: Out now {out_start.isoformat()} → {out_end.isoformat()} + coming up"
         send_email_message(
-            smtp_host=smtp_host,
-            smtp_port=smtp_port,
-            smtp_username=smtp_username,
-            smtp_password=smtp_password,
-            email_from=email_from,
-            email_to=email_to,
+            smtp_host=env_required("SMTP_HOST"),
+            smtp_port=int(os.getenv("SMTP_PORT", "587")),
+            smtp_username=env_required("SMTP_USERNAME"),
+            smtp_password=env_required("SMTP_PASSWORD"),
+            email_from=os.getenv("EMAIL_FROM", os.getenv("SMTP_USERNAME", "")),
+            email_to=env_required("EMAIL_TO"),
             subject=subject,
             text_body=plain_message,
-            html_body=format_email_html(theatrical, ott, start.isoformat(), end.isoformat(), region),
+            html_body=format_email_html(digest),
         )
         sent_channels.append("Email")
 
-    print(
-        f"Sent ReleaseBot alert to {', '.join(sent_channels)}: "
-        f"{len(theatrical)} theatrical, {len(ott)} OTT"
-    )
+    if dry_run:
+        print("--- DRY RUN: Telegram/plain message preview ---")
+        print(plain_message)
+        print("--- END PREVIEW ---")
+
+    counts = {
+        section: (len(out_sections.get(section, [])), len(up_sections.get(section, [])))
+        for section in SECTION_ORDER
+    }
+    summary = ", ".join(f"{section}: {out}/{up}" for section, (out, up) in counts.items())
+    print(f"OTT Radar done → {', '.join(sent_channels)} | out-now/coming-up counts: {summary}")
     return 0
 
 
@@ -557,5 +707,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except Exception as exc:
-        print(f"ReleaseBot failed: {exc}", file=sys.stderr)
+        print(f"OTT Radar failed: {exc}", file=sys.stderr)
         raise SystemExit(1)
