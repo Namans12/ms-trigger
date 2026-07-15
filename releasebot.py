@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import smtplib
 import sys
 from collections import defaultdict
@@ -29,6 +30,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import requests
+
+import news_sources
 
 
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
@@ -103,6 +106,10 @@ class TmdbClient:
             if page >= int(payload.get("total_pages", 1)):
                 break
         return results
+
+    def search_multi(self, query: str) -> list[dict[str, Any]]:
+        payload = self.get("/search/multi", query=query, include_adult="false", region=self.region)
+        return payload.get("results", [])
 
     def movie_details(self, movie_id: int) -> dict[str, Any]:
         return self.get(f"/movie/{movie_id}", append_to_response="release_dates,watch/providers")
@@ -410,6 +417,196 @@ def fetch_window_sections(
     sections["popular"] = fetch_popular_ott(tmdb, languages, start_s, end_s, min_popularity)
     print(f"  [{start_s}..{end_s}] popular: {len(sections['popular'])} items", file=sys.stderr)
     return sections
+
+
+# ---------------------------------------------------------------------------
+# News augmentation
+# ---------------------------------------------------------------------------
+#
+# TMDB's India OTT discover feeds are thin, so the digest kept missing titles
+# that the weekly "OTT releases this week" round-ups all list. We harvest those
+# curated titles (news_sources) and validate/enrich each against TMDB here:
+# real title, language, rating, poster, providers, links. Anything TMDB can't
+# confirm as a near-term movie/show is dropped, which filters the scraper noise.
+
+
+def _norm_title(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+
+
+def _match_search_result(candidate_title: str, results: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Pick the TMDB movie/tv result that best matches a scraped title."""
+    cn = _norm_title(candidate_title)
+    if len(cn) < 3:
+        return None
+    ctoks = set(cn.split())
+    best: dict[str, Any] | None = None
+    best_score = 0.0
+    for r in results:
+        if r.get("media_type") not in ("movie", "tv"):
+            continue
+        name = r.get("title") or r.get("name") or ""
+        rn = _norm_title(name)
+        if not rn:
+            continue
+        if cn == rn:
+            score = 100.0
+        elif rn.startswith(cn) or cn.startswith(rn):
+            score = 70.0
+        elif len(cn) >= 5 and (cn in rn or rn in cn):
+            score = 50.0
+        else:
+            union = ctoks | set(rn.split())
+            jaccard = len(ctoks & set(rn.split())) / len(union) if union else 0
+            if jaccard >= 0.7:
+                score = 45.0
+            else:
+                continue
+        score += min(float(r.get("popularity") or 0), 200) / 10
+        if score > best_score:
+            best_score = score
+            best = r
+    return best
+
+
+def _providers_for(tmdb: TmdbClient, media_type: str, item_id: int, fallback: str | None) -> tuple[str, ...]:
+    try:
+        details = tmdb.movie_details(item_id) if media_type == "movie" else tmdb.tv_details(item_id)
+    except Exception:  # pragma: no cover - network resilience
+        details = {}
+    providers = flatrate_providers(details, tmdb.region)
+    if not providers:
+        networks = tuple(n.get("name", "") for n in details.get("networks", []))
+        providers = tuple(n for n in networks if n in STREAMING_NETWORKS)
+    if not providers and fallback:
+        providers = (fallback,)
+    return providers
+
+
+def _item_from_search(result: dict[str, Any], release_date: str, providers: tuple[str, ...]) -> ReleaseItem:
+    media_type = "movie" if result.get("media_type") == "movie" else "tv"
+    title = (
+        result.get("title")
+        or result.get("name")
+        or result.get("original_title")
+        or result.get("original_name")
+        or "Untitled"
+    )
+    return ReleaseItem(
+        title=title,
+        media_type=media_type,
+        language=result.get("original_language") or "unknown",
+        release_date=release_date,
+        rating=result.get("vote_average"),
+        popularity=float(result.get("popularity") or 0),
+        overview=result.get("overview") or "",
+        tmdb_url=tmdb_item_url(media_type, result["id"]),
+        poster_url=poster_url(result.get("poster_path")),
+        providers=providers,
+    )
+
+
+def section_for_language(language: str, languages: list[str]) -> str:
+    mapping = {"hi": "hindi", "en": "english"}
+    if language in mapping:
+        return mapping[language]
+    if language in languages:  # a configured language without a named section
+        return language
+    return "popular"
+
+
+def enrich_news_candidates(
+    tmdb: TmdbClient,
+    candidates: list[news_sources.Candidate],
+    languages: list[str],
+    today: date,
+    next_trigger: date,
+    horizon_end: date,
+    recency_days: int = 45,
+) -> dict[str, dict[str, list[ReleaseItem]]]:
+    """Validate scraped titles against TMDB and bucket them into the two windows.
+
+    Returns {"out_now": {section: [...]}, "coming_up": {section: [...]}}.
+    A title lands in Coming Up if TMDB dates it on/after the next run, else
+    Out Now (news round-ups are 'this week', so we never window-drop them).
+    """
+    lo = today - timedelta(days=recency_days)
+    hi = horizon_end + timedelta(days=10)
+
+    def lookup(cand: news_sources.Candidate) -> tuple[news_sources.Candidate, dict[str, Any], str] | None:
+        try:
+            results = tmdb.search_multi(cand.title)
+        except Exception:  # pragma: no cover - network resilience
+            return None
+        match = _match_search_result(cand.title, results)
+        if not match:
+            return None
+        raw_date = (match.get("release_date") or match.get("first_air_date") or "")[:10]
+        if not raw_date:
+            return None
+        try:
+            parsed = date.fromisoformat(raw_date)
+        except ValueError:
+            return None
+        if not (lo <= parsed <= hi):
+            return None
+        return cand, match, raw_date
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        matched = [m for m in executor.map(lookup, candidates) if m]
+
+    # De-duplicate by TMDB id (several headlines point at the same title).
+    by_id: dict[tuple[str, int], tuple[news_sources.Candidate, dict[str, Any], str]] = {}
+    for cand, match, raw_date in matched:
+        by_id[(match.get("media_type", ""), match["id"])] = (cand, match, raw_date)
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        provider_lists = list(
+            executor.map(
+                lambda entry: _providers_for(
+                    tmdb, entry[1].get("media_type", "tv"), entry[1]["id"], entry[0].platform
+                ),
+                by_id.values(),
+            )
+        )
+
+    buckets: dict[str, dict[str, list[ReleaseItem]]] = {
+        "out_now": {s: [] for s in SECTION_ORDER},
+        "coming_up": {s: [] for s in SECTION_ORDER},
+    }
+    for (cand, match, raw_date), providers in zip(by_id.values(), provider_lists):
+        item = _item_from_search(match, raw_date, providers)
+        window = "coming_up" if date.fromisoformat(raw_date) >= next_trigger else "out_now"
+        section = section_for_language(item.language, languages)
+        buckets[window][section].append(item)
+
+    total = sum(len(v) for w in buckets.values() for v in w.values())
+    print(f"  news: {len(candidates)} candidates -> {len(by_id)} TMDB-confirmed -> {total} placed", file=sys.stderr)
+    return buckets
+
+
+def _item_richness(item: ReleaseItem) -> tuple[int, int, float]:
+    return (int(bool(item.poster_url)), int(bool(item.providers)), item.popularity)
+
+
+def merge_sections(
+    base: dict[str, list[ReleaseItem]],
+    extra: dict[str, list[ReleaseItem]],
+) -> dict[str, list[ReleaseItem]]:
+    """Merge news items into a window's sections, de-duplicating by title and
+    keeping the richer copy (poster/providers/popularity)."""
+    for section, items in extra.items():
+        combined = base.get(section, []) + items
+        best: dict[tuple[str, str], ReleaseItem] = {}
+        for item in combined:
+            key = (item.media_type, _norm_title(item.title))
+            current = best.get(key)
+            if current is None or _item_richness(item) > _item_richness(current):
+                best[key] = item
+        base[section] = sorted(
+            best.values(), key=lambda x: (x.release_date, -x.popularity, x.title)
+        )
+    return base
 
 
 # ---------------------------------------------------------------------------
@@ -831,6 +1028,21 @@ def build_digest(now: datetime | None = None, diagnostics: bool = False) -> dict
             run_diagnostics(tmdb, out_start, up_end)
         out_sections = fetch_window_sections(tmdb, languages, out_start, out_end, min_popularity)
         up_sections = fetch_window_sections(tmdb, languages, up_start, up_end, min_popularity)
+
+        if env_bool("NEWS_ENABLED", True):
+            try:
+                extra_urls = tuple(env_list("NEWS_URLS", ""))
+                candidates = news_sources.fetch_news_candidates(extra_urls=extra_urls)
+                buckets = enrich_news_candidates(
+                    tmdb, candidates, languages, now.date(), up_start, up_end
+                )
+                merge_sections(out_sections, buckets["out_now"])
+                merge_sections(up_sections, buckets["coming_up"])
+                # Popular can now overflow; keep the section focused.
+                for sections in (out_sections, up_sections):
+                    sections["popular"] = sections["popular"][:30]
+            except Exception as exc:  # pragma: no cover - never fail the digest on news
+                print(f"  news augmentation skipped: {exc}", file=sys.stderr)
 
     return {
         "generated_at": now.isoformat(timespec="seconds"),

@@ -18,6 +18,29 @@ With a real TMDB key (still nothing sent):
 DRY_RUN=true TMDB_API_KEY=<key> python releasebot.py
 ```
 
+Expect a `news: N candidates -> M TMDB-confirmed -> K placed` line on stderr and
+visibly fuller Hindi/English/Popular sections than a TMDB-only run.
+
+## News augmentation (news_sources.py)
+
+Candidate scraping needs no TMDB key and can be checked on its own:
+
+```bash
+python - <<'EOF'
+import news_sources as ns
+c = ns.fetch_news_candidates()          # evergreen: Google News India RSS
+print(len(c), "candidates")
+for x in sorted(c, key=lambda z: z.title.lower())[:40]:
+    print(" ", x.title, "|", x.platform)
+EOF
+```
+
+Expect this week's real OTT titles among the candidates (e.g. the ones the
+round-up articles list). Noise is expected here — TMDB validation in
+`releasebot.enrich_news_candidates` is the quality gate. Disable the whole layer
+with `NEWS_ENABLED=false`; add extra article URLs with
+`NEWS_URLS="https://...,https://..."`.
+
 ## Window logic
 
 ```bash

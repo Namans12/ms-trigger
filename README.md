@@ -118,11 +118,31 @@ The workflow in `.github/workflows/ott-radar.yml` runs automatically Wednesday a
 | `REGION` | `IN` | TMDB watch region |
 | `LANGUAGES` | `hi,en` | Dedicated language sections |
 | `POPULAR_MIN_POPULARITY` | `25` | Threshold for the any-language Popular section |
+| `NEWS_ENABLED` | `true` | Augment TMDB with titles scraped from India OTT round-ups (see below) |
+| `NEWS_URLS` | — | Comma-separated extra article URLs to scrape (optional; e.g. a specific GQ/Deccan Herald round-up) |
 | `RELEASE_TIMEZONE` | `Asia/Kolkata` | Timezone used for date windows |
 | `DRY_RUN` | `false` | Skip Telegram/email, still write dashboard data |
 | `USE_SAMPLE_DATA` | `false` | Generate sample data without a TMDB key (local testing) |
 | `OUTPUT_DIR` | `docs` | Where `data.json` / `history.json` are written |
 | `DASHBOARD_URL` | — | Link included in Telegram/email digests |
+
+## News augmentation (why the digest is now fuller)
+
+TMDB's India OTT discover feeds are incomplete and often lag the real streaming
+calendar, so the digest used to miss titles that every "OTT releases this week"
+article lists. `news_sources.py` fixes this:
+
+1. It harvests candidate titles from editorially-curated Indian OTT round-ups —
+   **evergreen** via Google News India RSS (auto-updates weekly, no per-week URL
+   maintenance), plus any extra article URLs you set in `NEWS_URLS`.
+2. Every candidate is then **validated and enriched against TMDB** (real title,
+   language, rating, poster, watch providers, links). Anything TMDB can't confirm
+   as a near-term movie/show is dropped — that is the quality gate that filters
+   out the noise scraping inevitably picks up.
+3. Confirmed titles are merged into the Hindi / English / Popular sections and
+   bucketed into Out Now vs Coming Up by their TMDB date.
+
+Set `NEWS_ENABLED=false` to fall back to TMDB-only behavior.
 
 ## Local testing
 
