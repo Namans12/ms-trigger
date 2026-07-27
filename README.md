@@ -78,7 +78,7 @@ Using your own Gmail (or any account) as the sender needs an **app password**, n
 
 ### 5. Add the secrets to GitHub
 
-1. Go to your repo on GitHub: `https://github.com/<your-username>/<repo-name>`
+1. Go to your repo on GitHub: `https://github.com/Namans12/ms-trigger`
 2. **Settings** tab (top of repo, not your account settings) → left sidebar **Secrets and variables → Actions**
 3. Click **New repository secret** for each of these, pasting the value and clicking **Add secret**:
 
