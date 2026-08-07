@@ -1,5 +1,799 @@
 [
   {
+    "generated_at": "2026-08-07T15:04:23+05:30",
+    "region": "IN",
+    "out_now": {
+      "start": "2026-08-07",
+      "end": "2026-08-11",
+      "sections": {
+        "hindi": [
+          {
+            "title": "Tavvai",
+            "media_type": "movie",
+            "language": "hi",
+            "release_date": "2026-06-29",
+            "rating": 0.0,
+            "popularity": 1.6124,
+            "overview": "In 1880, A Maharaj through his atrocities invited Tavvai. The village is terrified for generations until a chosen one sets things right.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1722860",
+            "poster_url": "https://image.tmdb.org/t/p/w500/pZAbPoVTMYrxFUSGG9hwaOUsZnW.jpg",
+            "providers": []
+          },
+          {
+            "title": "Pritam and Pedro",
+            "media_type": "tv",
+            "language": "hi",
+            "release_date": "2026-07-03",
+            "rating": 8.4,
+            "popularity": 30.8264,
+            "overview": "The dynamic between the two contrasting personalities, a seasoned cop who prefers old-school methods and a tech-savvy cop who relies on modern technology for investigations, as they navigate their partnership in solving crimes.",
+            "tmdb_url": "https://www.themoviedb.org/tv/243206",
+            "poster_url": "https://image.tmdb.org/t/p/w500/lC0MtWrnC0SZICFHazagIfVKy0x.jpg",
+            "providers": [
+              "JioHotstar"
+            ]
+          },
+          {
+            "title": "Ikka",
+            "media_type": "movie",
+            "language": "hi",
+            "release_date": "2026-07-10",
+            "rating": 5.676,
+            "popularity": 8.1218,
+            "overview": "With a loved one's life at stake, a celebrated lawyer must defend a man he suspects is guilty — battling his conscience every step of the way.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1484913",
+            "poster_url": "https://image.tmdb.org/t/p/w500/fp5EAKE8nTx402n1fWz55QsuYY9.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Musafir Cafe",
+            "media_type": "tv",
+            "language": "hi",
+            "release_date": "2026-07-24",
+            "rating": 7.3,
+            "popularity": 50.7472,
+            "overview": "Chander feels an undeniable connection with Sudha. Years later, he builds a new life in the hills with Preeti, but memories of the past linger.",
+            "tmdb_url": "https://www.themoviedb.org/tv/313101",
+            "poster_url": "https://image.tmdb.org/t/p/w500/1SbKjtoRKIpVQG5iYnumnfQIqhd.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Adarsh Baal Vidyalaya",
+            "media_type": "tv",
+            "language": "hi",
+            "release_date": "2026-07-24",
+            "rating": 8.0,
+            "popularity": 8.6465,
+            "overview": "A relaxed principal tries to reform a failing public school, triggering a messy transformation as misfit teachers work to repair the system one lesson at a time.",
+            "tmdb_url": "https://www.themoviedb.org/tv/328402",
+            "poster_url": "https://image.tmdb.org/t/p/w500/1XbcSqURUvhgu2nnoQRZ7cXmTsJ.jpg",
+            "providers": [
+              "Amazon Prime Video",
+              "Amazon Prime Video with Ads"
+            ]
+          },
+          {
+            "title": "The Legend of Karna",
+            "media_type": "tv",
+            "language": "hi",
+            "release_date": "2026-07-31",
+            "rating": 0.0,
+            "popularity": 1.6166,
+            "overview": "A warrior from the Mahabharata who is born to Kunti and the Sun God Surya but raised in a charioteer’s household. He possesses the gift of bow mastery that rivals the greatest warriors of his age, compelling him to enter a grand tournament usually reserved only for kings and princes, altering the course of an empire forever.",
+            "tmdb_url": "https://www.themoviedb.org/tv/329404",
+            "poster_url": "https://image.tmdb.org/t/p/w500/jzVP9rqT2YH2nTx3l3csmmU9B1q.jpg",
+            "providers": [
+              "SonyLIV"
+            ]
+          },
+          {
+            "title": "Ohh My Dog",
+            "media_type": "movie",
+            "language": "hi",
+            "release_date": "2026-08-06",
+            "rating": 0.0,
+            "popularity": 1.4271,
+            "overview": "In Assam, 14-year-old Apu embarks on a desperate quest to rescue his beloved dog, Momo, after he is kidnapped. Meanwhile, in Bihar, a devoted dog named Oscar sets out on a perilous journey of his own to find his kidnapped owner, a 15-year old.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1727563",
+            "poster_url": "https://image.tmdb.org/t/p/w500/zzHV3rmS07lrFkcHXFx2J9JhZwJ.jpg",
+            "providers": []
+          },
+          {
+            "title": "Main Vaapas Aaunga",
+            "media_type": "movie",
+            "language": "hi",
+            "release_date": "2026-08-07",
+            "rating": 6.7,
+            "popularity": 5.7611,
+            "overview": "Haunted by a childhood romance and recollections of love lost during the 1947 Partition of India, 95-year-old Ishar Singh Grewal shares his story with his grandson Nirvair, the past unfolding through memories of migration, longing, and a romance that endures across generations.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1431068",
+            "poster_url": "https://image.tmdb.org/t/p/w500/wHTNsZxvlfRAndc52hGlbdCUXKS.jpg",
+            "providers": []
+          },
+          {
+            "title": "Operation Safed Sagar",
+            "media_type": "tv",
+            "language": "hi",
+            "release_date": "2026-08-07",
+            "rating": 0.0,
+            "popularity": 5.0041,
+            "overview": "A squadron of Indian Air Force pilots push beyond their limits to attempt a daring and dangerous mission.",
+            "tmdb_url": "https://www.themoviedb.org/tv/284753",
+            "poster_url": "https://image.tmdb.org/t/p/w500/f56PHAGbUFPmHMRippWWNpRgSao.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Aligned Apart",
+            "media_type": "movie",
+            "language": "hi",
+            "release_date": "2026-08-07",
+            "rating": 0.0,
+            "popularity": 0.4549,
+            "overview": "Two Strangers. Two Stories. A painful breakup and loss of his job leave Neel searching for purpose, while Tara finds herself struggling to cope with her parents' separation and the uncertainty surrounding her family. As the two unknowingly mirror each other's journeys through loss and healing, their lives repeatedly cross in unexpected ways. Can two lives moving in parallel ever become one?",
+            "tmdb_url": "https://www.themoviedb.org/movie/1721282",
+            "poster_url": "https://image.tmdb.org/t/p/w500/1VqrtHYxmS7FwXHHvbYem9KSNee.jpg",
+            "providers": []
+          }
+        ],
+        "english": [
+          {
+            "title": "Enola Holmes 3",
+            "media_type": "movie",
+            "language": "en",
+            "release_date": "2026-07-01",
+            "rating": 6.9,
+            "popularity": 24.8975,
+            "overview": "Adventure follows detective Enola Holmes to Malta, where her plans to tie the knot unravel when Sherlock's disappearance plunges her into a perilous case.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1202033",
+            "poster_url": "https://image.tmdb.org/t/p/w500/7kRYHH9H9PjBFwz1FprbHB2AAjI.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Elle",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-07-01",
+            "rating": 7.846,
+            "popularity": 19.4781,
+            "overview": "Before Elle Woods was a fish-out-of-water at Harvard, we meet her in 1995 in the tumultuous waters of high school where she encounters tricky friendships, forbidden romance, and questionable fashion choices. In this unexpected chapter of her adolescence, we learn about the experiences that shaped Elle into the iconic young woman we've come to know and love.",
+            "tmdb_url": "https://www.themoviedb.org/tv/254420",
+            "poster_url": "https://image.tmdb.org/t/p/w500/dpH7Lyrs7z7MlTGgfeibryGnWAv.jpg",
+            "providers": [
+              "Amazon Prime Video",
+              "Amazon Prime Video with Ads"
+            ]
+          },
+          {
+            "title": "The Westies",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-07-12",
+            "rating": 6.7,
+            "popularity": 25.2865,
+            "overview": "As the Javits Center construction project ignites a battle for profit in early 1980s Hell's Kitchen, a generational rift threatens the uneasy peace between violent Irish gang the Westies and the Mafia, and draws FBI heat.",
+            "tmdb_url": "https://www.themoviedb.org/tv/286709",
+            "poster_url": "https://image.tmdb.org/t/p/w500/6nNxw6SsbEtSpktVEGdoYDqPH7C.jpg",
+            "providers": []
+          },
+          {
+            "title": "Murder 101",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-07-13",
+            "rating": 10.0,
+            "popularity": 2.3287,
+            "overview": "Part teen drama, part masterclass, and part edge-of-your-seat crime investigation, follow a high school sociology class in rural Tennessee who help revive a decades-old case into a present-day hunt for a killer.",
+            "tmdb_url": "https://www.themoviedb.org/tv/325622",
+            "poster_url": "https://image.tmdb.org/t/p/w500/aXZduHzTSH9uDJqzy6T6oHikfEB.jpg",
+            "providers": [
+              "Prime Video"
+            ]
+          },
+          {
+            "title": "On Purpose with Jay Shetty",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-07-13",
+            "rating": 0.0,
+            "popularity": 1.1615,
+            "overview": "One of the most popular podcasts in the world, On Purpose features in-depth conversations with influential voices across culture, wellness, and personal growth.",
+            "tmdb_url": "https://www.themoviedb.org/tv/325763",
+            "poster_url": "https://image.tmdb.org/t/p/w500/efJ8UnMnHXoNQMCaTPQjHjclWa0.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Ride or Die",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-07-15",
+            "rating": 6.391,
+            "popularity": 32.5619,
+            "overview": "Best friends Debbie and Judith are forced on the run when Debbie discovers Judith isn't a forensic accountant, she's an international assassin! With a mysterious figure chasing them, and Debbie's husband involved in something deeply corrupt, it's a race against time and a road trip across Europe to untangle the truth and stay alive.",
+            "tmdb_url": "https://www.themoviedb.org/tv/241882",
+            "poster_url": "https://image.tmdb.org/t/p/w500/uWqEnvpwa2U28QheMdUdEcr4U0M.jpg",
+            "providers": [
+              "Amazon Prime Video",
+              "Amazon Prime Video with Ads"
+            ]
+          },
+          {
+            "title": "The Hawk",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-07-16",
+            "rating": 5.293,
+            "popularity": 19.1808,
+            "overview": "On the back nine of his career, golf legend Lonnie \"The Hawk\" Hawkins chases one final major — and drags everyone he loves into the chaos.",
+            "tmdb_url": "https://www.themoviedb.org/tv/254528",
+            "poster_url": "https://image.tmdb.org/t/p/w500/6XCbqv7t0rYE2U1jzjh52fBxczj.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Heartstopper Forever",
+            "media_type": "movie",
+            "language": "en",
+            "release_date": "2026-07-17",
+            "rating": 7.3,
+            "popularity": 18.6223,
+            "overview": "It's a new school year for the Truham-Higgs gang. As Nick and Charlie's relationship deepens, their thoughts turn to life after the last bell rings.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1468683",
+            "poster_url": "https://image.tmdb.org/t/p/w500/ch28kJu4pG2x07sN22valXvV3JY.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Stuart Fails to Save the Universe",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-07-23",
+            "rating": 9.287,
+            "popularity": 62.884,
+            "overview": "After accidentally creating a new multiverse, comic book store owner Stuart Bloom must locate a quantum-interference device to restore reality.",
+            "tmdb_url": "https://www.themoviedb.org/tv/287620",
+            "poster_url": "https://image.tmdb.org/t/p/w500/vM6B0dqOB2YdXEaA7bjq5LuXEo.jpg",
+            "providers": [
+              "JioHotstar"
+            ]
+          },
+          {
+            "title": "72 HOURS",
+            "media_type": "movie",
+            "language": "en",
+            "release_date": "2026-07-24",
+            "rating": 6.786,
+            "popularity": 85.235,
+            "overview": "To save his career, a 40-year-old ad exec joins a crew of twentysomethings for a wild Miami bachelor party after they mistakenly add him to a group chat.",
+            "tmdb_url": "https://www.themoviedb.org/movie/949838",
+            "poster_url": "https://image.tmdb.org/t/p/w500/9Bu1PW2R1XayqRqnl0aDOgMcrdS.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Sterling Point",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-08-05",
+            "rating": 6.6,
+            "popularity": 41.247,
+            "overview": "After discovering she's inherited a remote island in Canada from the estranged grandfather she was never allowed to meet, 17-year-old Annie Jacobson decides to investigate, pulling her into a world of buried secrets, unexpected sisterhood, and the complicated family history she was never meant to find.",
+            "tmdb_url": "https://www.themoviedb.org/tv/283297",
+            "poster_url": "https://image.tmdb.org/t/p/w500/cThLWEGs6BEqY0QZMbU4FAeWwPT.jpg",
+            "providers": [
+              "Amazon Prime Video",
+              "Amazon Prime Video with Ads"
+            ]
+          },
+          {
+            "title": "Big Chicken: A Fast Food Conspiracy",
+            "media_type": "movie",
+            "language": "en",
+            "release_date": "2026-08-05",
+            "rating": 4.333,
+            "popularity": 9.9459,
+            "overview": "In a bold 28-day experiment, comedian Mo Gilligan tours the UK and US on a fried chicken diet to uncover the impact of the craving — and industry behind it.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1728056",
+            "poster_url": "https://image.tmdb.org/t/p/w500/vNvkzG9HpVbnAPqAgkDJBzYi8be.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "The Last House",
+            "media_type": "movie",
+            "language": "en",
+            "release_date": "2026-08-07",
+            "rating": 5.0,
+            "popularity": 10.1319,
+            "overview": "A family suddenly sealed inside their home must work together to survive against dwindling resources and the ominous threat keeping them trapped.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1284041",
+            "poster_url": "https://image.tmdb.org/t/p/w500/6JU7E8Vv2M11egkctWVOScxWR75.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Ricky Gervais Alley Cats",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-08-07",
+            "rating": 0.0,
+            "popularity": 6.2355,
+            "overview": "Outrageous misadventures run wild as feral cats cause chaos on the streets in this no-holds-barred animated comedy from Ricky Gervais.",
+            "tmdb_url": "https://www.themoviedb.org/tv/300480",
+            "poster_url": "https://image.tmdb.org/t/p/w500/mWC77mH2Nv7KMP8vGzwwCVkhsWu.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Lajiao's Holes",
+            "media_type": "movie",
+            "language": "en",
+            "release_date": "2026-08-07",
+            "rating": 0.0,
+            "popularity": 0.7342,
+            "overview": "Lajiao wants to do things her own way, but a little girl will remind her of her mission as a member of the Zodiac.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1732074",
+            "poster_url": "https://image.tmdb.org/t/p/w500/7XOHPdKa0xcrBSQxqPVVmsZoDQj.jpg",
+            "providers": []
+          },
+          {
+            "title": "Creeping Weaved Farms",
+            "media_type": "movie",
+            "language": "en",
+            "release_date": "2026-08-07",
+            "rating": 0.0,
+            "popularity": 0.2943,
+            "overview": "Series of Collision weaved together to form Adam.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1715113",
+            "poster_url": "https://image.tmdb.org/t/p/w500/qizXK7juBPv4Ted8wTLhDnBxPUL.jpg",
+            "providers": []
+          },
+          {
+            "title": "Beyond the Blood",
+            "media_type": "movie",
+            "language": "en",
+            "release_date": "2026-08-08",
+            "rating": 0.0,
+            "popularity": 0.2369,
+            "overview": "Haunted by a childhood tragedy, Aarav is forced onto a relentless path where justice demands blood, silence breeds monsters, and every choice pushes him closer to becoming the very darkness he seeks to destroy.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1742445",
+            "poster_url": "https://image.tmdb.org/t/p/w500/4M676tGXjszWSsqhwQ52lnh2q9w.jpg",
+            "providers": []
+          },
+          {
+            "title": "The Chosen in the Wild with Bear Grylls",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-08-09",
+            "rating": 0.0,
+            "popularity": 0.9981,
+            "overview": "Follows Grylls as he takes the cast of The Chosen, as well as series creator Dallas Jenkins, on adventures in the wilderness.",
+            "tmdb_url": "https://www.themoviedb.org/tv/294141",
+            "poster_url": "https://image.tmdb.org/t/p/w500/3B8EZvb340YdsES35tiVfp0fNzy.jpg",
+            "providers": [
+              "Prime Video"
+            ]
+          },
+          {
+            "title": "MOURINHO",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-08-11",
+            "rating": 0.0,
+            "popularity": 1.2141,
+            "overview": "This trophy-packed, insider-fuelled documentary charts José Mourinho's iconic rise as one of the world's top footballing managers of the most elite clubs.",
+            "tmdb_url": "https://www.themoviedb.org/tv/329274",
+            "poster_url": "https://image.tmdb.org/t/p/w500/2rqY4giaooi18Z0mLiGOfJ4XUuN.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          }
+        ],
+        "popular": [
+          {
+            "title": "Uyir",
+            "media_type": "movie",
+            "language": "ml",
+            "release_date": "2026-06-26",
+            "rating": 0.0,
+            "popularity": 7.0123,
+            "overview": "Follows Ajeeb, a sub-inspector serving his probationary period at the Dharmadam Police Station in Kannur district, based on real incidents.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1451486",
+            "poster_url": "https://image.tmdb.org/t/p/w500/r512xdTd9aXjpIxjY2JlhvJYvIb.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Con City",
+            "media_type": "movie",
+            "language": "ta",
+            "release_date": "2026-06-26",
+            "rating": 6.333,
+            "popularity": 3.3045,
+            "overview": "Follows a struggling family whose lives change when a receipt printer starts generating money after a lightning strike, leading to public chaos when society discovers the money-making machine.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1596008",
+            "poster_url": "https://image.tmdb.org/t/p/w500/pJ4UwvLpek1jK8d540Ho8xI08iL.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Super Subbu",
+            "media_type": "tv",
+            "language": "te",
+            "release_date": "2026-07-02",
+            "rating": 7.0,
+            "popularity": 4.761,
+            "overview": "An unlucky teacher is assigned to teach sex ed in a hostile village. Can he balance this secret while chasing his dreams and saving his relationship?",
+            "tmdb_url": "https://www.themoviedb.org/tv/283609",
+            "poster_url": "https://image.tmdb.org/t/p/w500/bwb5oPnZAdRwKusI8So8Sx1bcL4.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Isakapatnam",
+            "media_type": "tv",
+            "language": "te",
+            "release_date": "2026-07-02",
+            "rating": 0.0,
+            "popularity": 2.7642,
+            "overview": "Set in the 1990s, in the ruthless port town of Isakapatnam, three forces collide—a woman driven by justice, a henchman torn by loyalty, and a common man hungry for revenge—each closing in on the empire built by the port’s most powerful man, Naidu.",
+            "tmdb_url": "https://www.themoviedb.org/tv/316968",
+            "poster_url": "https://image.tmdb.org/t/p/w500/cs42BHvNNWw74fct04gAzijTtBQ.jpg",
+            "providers": [
+              "Amazon Prime Video",
+              "Amazon Prime Video with Ads"
+            ]
+          },
+          {
+            "title": "Gatta Kusthi 2",
+            "media_type": "movie",
+            "language": "ta",
+            "release_date": "2026-07-03",
+            "rating": 3.6,
+            "popularity": 26.8719,
+            "overview": "Picks up after the first film, with Veera and Keerthi balancing parenthood and Keerthi's wrestling career, featuring a role reversal where Veera takes on more domestic responsibilities.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1509599",
+            "poster_url": "https://image.tmdb.org/t/p/w500/5U8MWIk9XZ60NALyOTpyX7vXIR7.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Rao Bahadur",
+            "media_type": "movie",
+            "language": "te",
+            "release_date": "2026-07-03",
+            "rating": 6.5,
+            "popularity": 7.4447,
+            "overview": "In 1970s India, an eccentric aristocrat—labeled a 'man of miracles'—miraculously survives a terminal illness. Plagued by guilt and fear, he retreats into his palatial mansion, creating an alternate world that deeply blurs reality and imagination.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1443961",
+            "poster_url": "https://image.tmdb.org/t/p/w500/9hzKAJImKEHBz0vnF5EazPMA8D4.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Muthassi",
+            "media_type": "tv",
+            "language": "ml",
+            "release_date": "2026-07-03",
+            "rating": 0.0,
+            "popularity": 6.2594,
+            "overview": "In a remote village haunted by ancient secrets, a mother's love is put to the ultimate test when her son becomes entangled in a terrifying supernatural curse.",
+            "tmdb_url": "https://www.themoviedb.org/tv/326794",
+            "poster_url": "https://image.tmdb.org/t/p/w500/upghryFPaiUMjlzgmnHpwtnYJx3.jpg",
+            "providers": [
+              "ZEE5",
+              "ZEE5"
+            ]
+          },
+          {
+            "title": "I'm Not Afraid",
+            "media_type": "tv",
+            "language": "es",
+            "release_date": "2026-07-08",
+            "rating": 8.847,
+            "popularity": 8.052,
+            "overview": "10-year-old Miguel stumbles upon a terrifying secret involving a boy trapped in a hole near his home.",
+            "tmdb_url": "https://www.themoviedb.org/tv/290232",
+            "poster_url": "https://image.tmdb.org/t/p/w500/ydUCCsKWNkGFecRPKHViWi0lppz.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "The East Palace",
+            "media_type": "tv",
+            "language": "ko",
+            "release_date": "2026-07-17",
+            "rating": 8.127,
+            "popularity": 30.6975,
+            "overview": "A man who walks the spirit world and a court lady who hears the dead enter the East Palace by the king's orders — can they unravel its dark secrets?",
+            "tmdb_url": "https://www.themoviedb.org/tv/279323",
+            "poster_url": "https://image.tmdb.org/t/p/w500/yfYohBszGqoAW8oM0qydOtJ4kPh.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "The Vacation Principle",
+            "media_type": "tv",
+            "language": "ja",
+            "release_date": "2026-07-27",
+            "rating": 0.0,
+            "popularity": 14.5563,
+            "overview": "After losing her job, a woman retreats to her late grandmother's seaside villa, where an unexpected friendship with its mysterious caretaker helps her heal and embrace a new beginning.",
+            "tmdb_url": "https://www.themoviedb.org/tv/319077",
+            "poster_url": "https://image.tmdb.org/t/p/w500/wc9IbG1FkxzGGSkrP3kxUDpt2Ls.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Srinivasa Mangapuram",
+            "media_type": "movie",
+            "language": "te",
+            "release_date": "2026-07-30",
+            "rating": 10.0,
+            "popularity": 1.7481,
+            "overview": "Vasu Babu and Manga are living in their own blissful world, until a ruthless threat targets their romance. As powerful enemies move to separate them, Vasu must fight for his woman.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1577326",
+            "poster_url": "https://image.tmdb.org/t/p/w500/7KnqSoNWrmPSSatvAnIGrTmJS3Q.jpg",
+            "providers": []
+          },
+          {
+            "title": "Unmadham",
+            "media_type": "movie",
+            "language": "ml",
+            "release_date": "2026-07-31",
+            "rating": 0.0,
+            "popularity": 3.7471,
+            "overview": "A police constable reopens a long-forgotten case and experiences an unsettling world.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1545486",
+            "poster_url": "https://image.tmdb.org/t/p/w500/6AIMHBUY6PCHVYASWZ0GcTA9Kph.jpg",
+            "providers": []
+          },
+          {
+            "title": "Lenin",
+            "media_type": "movie",
+            "language": "te",
+            "release_date": "2026-08-07",
+            "rating": 6.2,
+            "popularity": 22.9159,
+            "overview": "In a village trapped by generations of bloodshed, a determined young man dares to challenge the traditions fueling an endless cycle of violence.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1408170",
+            "poster_url": "https://image.tmdb.org/t/p/w500/rAHQviBq8Fxi20hNtHPGLnr4L0f.jpg",
+            "providers": []
+          },
+          {
+            "title": "Idhayam Murali",
+            "media_type": "movie",
+            "language": "ta",
+            "release_date": "2026-08-07",
+            "rating": 7.7,
+            "popularity": 21.7256,
+            "overview": "A young man navigates the complexities of unrequited love, finding that even as years pass and life takes unexpected turns, certain emotions remain deeply embedded in his heart.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1432631",
+            "poster_url": "https://image.tmdb.org/t/p/w500/xeb6080yZcKijIoXc1YxOU5A2Gb.jpg",
+            "providers": []
+          },
+          {
+            "title": "Our Sticky Love",
+            "media_type": "tv",
+            "language": "ko",
+            "release_date": "2026-08-07",
+            "rating": 6.0,
+            "popularity": 14.3178,
+            "overview": "An ambitious prosecutor loses her memory and moves in with a boxing coach who claims to be her boyfriend. Can this sticky situation turn into real love?",
+            "tmdb_url": "https://www.themoviedb.org/tv/291496",
+            "poster_url": "https://image.tmdb.org/t/p/w500/tSZ4aFpTGc8Oj52SuzPUUZ7WKL0.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "ChaO",
+            "media_type": "movie",
+            "language": "ja",
+            "release_date": "2026-08-07",
+            "rating": 8.1,
+            "popularity": 3.1642,
+            "overview": "In a futuristic world where humans and mermaids coexist, the life of mild-mannered office worker Stephan is upended when he is suddenly proposed to by Chao — a princess from the mermaid kingdom. With no time to make sense of what's happening, Stephan soon finds himself living with the unpredictable, wholehearted Chao, and her sincere love begins to break down his emotional barriers.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1419053",
+            "poster_url": "https://image.tmdb.org/t/p/w500/mhatkIu25HQ4orQTunuFNQZzrFl.jpg",
+            "providers": []
+          },
+          {
+            "title": "Sathyathil Sambhavichathu",
+            "media_type": "movie",
+            "language": "ml",
+            "release_date": "2026-08-07",
+            "rating": 0.0,
+            "popularity": 2.3651,
+            "overview": "A long-standing legend speaks of treasure hidden beneath village ponds and wells, with only one man ever claiming to have found it. When clues about the lost treasure begin to surface, a series of misunderstandings, unexpected discoveries, and amusing consequences unfold, blending mystery with humor.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1720240",
+            "poster_url": "https://image.tmdb.org/t/p/w500/kypHuYSkCoT5oZMXmmfCBVhObcd.jpg",
+            "providers": []
+          },
+          {
+            "title": "Nooru Sami",
+            "media_type": "movie",
+            "language": "ta",
+            "release_date": "2026-08-07",
+            "rating": 0.0,
+            "popularity": 2.34,
+            "overview": "Selvi, a widowed mother, devotes her life to raising her two sons in a conservative village. Years later, unfulfilled life comes back into focus, challenging deep-rooted traditions. As family and society strongly oppose change, Selvi must choose between societal expectations and her own happiness.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1544326",
+            "poster_url": "https://image.tmdb.org/t/p/w500/1dKmZB9KVSOA6mq6Oa2t6HYd8E1.jpg",
+            "providers": []
+          }
+        ]
+      }
+    },
+    "coming_up": {
+      "start": "2026-08-12",
+      "end": "2026-08-18",
+      "sections": {
+        "hindi": [
+          {
+            "title": "Cocktail 2",
+            "media_type": "movie",
+            "language": "hi",
+            "release_date": "2026-08-14",
+            "rating": 5.684,
+            "popularity": 4.2486,
+            "overview": "After a decade together, Diya and Kunal's relationship is shaken when Ally, an old friend, re-enters their lives. What begins as a plan between two women spirals into chaos, triggering hilarious, emotional rollercoaster none of them saw coming.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1392469",
+            "poster_url": "https://image.tmdb.org/t/p/w500/oIQmtByV1LtEQSwM4EpdLTyoSlM.jpg",
+            "providers": []
+          },
+          {
+            "title": "Character's Creation",
+            "media_type": "movie",
+            "language": "hi",
+            "release_date": "2026-08-15",
+            "rating": 0.0,
+            "popularity": 0.2784,
+            "overview": "When a writer's manuscript gets repeatedly rejected, he decides to give up the idea of publishing it. But, all of this changes when the main character of the story himself shows up in front of him and questions him about the story.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1732052",
+            "poster_url": "https://image.tmdb.org/t/p/w500/h5mPoq1HmQcTSiNhEroaWlPaJjT.jpg",
+            "providers": []
+          }
+        ],
+        "english": [
+          {
+            "title": "Conversations with a Killer: The Charles Manson Tapes",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-08-12",
+            "rating": 0.0,
+            "popularity": 1.436,
+            "overview": "Tracing Charles Manson's rise as a cult leader, the 1969 murders, and his trial, using unreleased prison recordings, interviews, and archival footage.",
+            "tmdb_url": "https://www.themoviedb.org/tv/330320",
+            "poster_url": "https://image.tmdb.org/t/p/w500/tCVHTlGdco73etaNGsRdFXx0LPy.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "My Brilliant Career",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-08-13",
+            "rating": 0.0,
+            "popularity": 4.0609,
+            "overview": "Restless, razor-sharp, and refusing to conform, Sybylla is dead set on writing her own story in an era that expects her to find a man and settle down.",
+            "tmdb_url": "https://www.themoviedb.org/tv/309798",
+            "poster_url": "https://image.tmdb.org/t/p/w500/fhpa8B6USatHybK04XBbPAB6Mlz.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "The Rotten Files with Stephanie Soo",
+            "media_type": "tv",
+            "language": "en",
+            "release_date": "2026-08-14",
+            "rating": 0.0,
+            "popularity": 0.962,
+            "overview": "Stephanie Soo dives deep into today's most explosive cases to uncover killers and predators who thought their stories would stay buried.",
+            "tmdb_url": "https://www.themoviedb.org/tv/320936",
+            "poster_url": null,
+            "providers": [
+              "Netflix"
+            ]
+          }
+        ],
+        "popular": [
+          {
+            "title": "Kattalan",
+            "media_type": "movie",
+            "language": "ml",
+            "release_date": "2026-08-13",
+            "rating": 6.8,
+            "popularity": 4.9212,
+            "overview": "Power-hungry forces clash in the Ivory cartel war-a fierce story of control, vengeance, and survival where compassion vanishes and only the ruthless endure.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1065834",
+            "poster_url": "https://image.tmdb.org/t/p/w500/53FATyQirV8BuBcrsQMGPvGKgCu.jpg",
+            "providers": []
+          },
+          {
+            "title": "Call My Manager",
+            "media_type": "tv",
+            "language": "tl",
+            "release_date": "2026-08-13",
+            "rating": 0.0,
+            "popularity": 1.4105,
+            "overview": "Philippine adaptation of the French TV show of the same name.",
+            "tmdb_url": "https://www.themoviedb.org/tv/155456",
+            "poster_url": "https://image.tmdb.org/t/p/w500/9e9g4fzOAB9v9Tdt14R2DkJnJBd.jpg",
+            "providers": [
+              "HBO Max"
+            ]
+          },
+          {
+            "title": "Moria",
+            "media_type": "tv",
+            "language": "es",
+            "release_date": "2026-08-14",
+            "rating": 0.0,
+            "popularity": 0.8973,
+            "overview": "Moria Casán celebrates her 80th birthday and opens the doors to a fictionalized version of herself as the puppeteer of her own story. Three great actresses — Sofía Gala Castiglione, Griselda Siciliani, and Cecilia Roth — portray her at different stages of her life. The series is not just the portrait of a star who spans film, theater, and television; it is the story of a woman who turned transgression into a way of survival and a tribute to Argentine popular culture.",
+            "tmdb_url": "https://www.themoviedb.org/tv/322428",
+            "poster_url": "https://image.tmdb.org/t/p/w500/sbgnRVTa1ovATE2rH1TZXrb4dLH.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          },
+          {
+            "title": "Ananya's Call",
+            "media_type": "movie",
+            "language": "ta",
+            "release_date": "2026-08-17",
+            "rating": 0.0,
+            "popularity": 0.5669,
+            "overview": "Faced with an impossible encounter in her own home, a young woman must race against time to stop a tragedy that defies the laws of nature.",
+            "tmdb_url": "https://www.themoviedb.org/movie/1581313",
+            "poster_url": "https://image.tmdb.org/t/p/w500/68bzn1iGYULYl6GSr3R8cQVhpQv.jpg",
+            "providers": []
+          },
+          {
+            "title": "Take a Hike!",
+            "media_type": "tv",
+            "language": "ko",
+            "release_date": "2026-08-18",
+            "rating": 0.0,
+            "popularity": 1.7349,
+            "overview": "Four celebrity hiking newbies end up forming a club to tackle Korea's snow‑capped peaks. Can they figure out why on earth people go to the mountains?",
+            "tmdb_url": "https://www.themoviedb.org/tv/326901",
+            "poster_url": "https://image.tmdb.org/t/p/w500/ya3p0meUJJ92gjFRFcZ1C3TJ0nO.jpg",
+            "providers": [
+              "Netflix"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
     "generated_at": "2026-08-05T16:31:22+05:30",
     "region": "IN",
     "out_now": {
@@ -5070,202 +5864,6 @@
         "hindi": [],
         "english": [],
         "popular": []
-      }
-    }
-  },
-  {
-    "generated_at": "2026-07-15T02:46:58+05:30",
-    "region": "IN",
-    "out_now": {
-      "start": "2026-07-15",
-      "end": "2026-07-16",
-      "sections": {
-        "hindi": [
-          {
-            "title": "Sample Hindi Thriller",
-            "media_type": "movie",
-            "language": "hi",
-            "release_date": "2026-07-15",
-            "rating": 7.4,
-            "popularity": 80,
-            "overview": "Sample overview for Sample Hindi Thriller. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "Netflix"
-            ]
-          },
-          {
-            "title": "Sample Hindi Drama S2",
-            "media_type": "tv",
-            "language": "hi",
-            "release_date": "2026-07-16",
-            "rating": 8.1,
-            "popularity": 65,
-            "overview": "Sample overview for Sample Hindi Drama S2. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "Amazon Prime Video"
-            ]
-          }
-        ],
-        "english": [
-          {
-            "title": "Sample English Blockbuster",
-            "media_type": "movie",
-            "language": "en",
-            "release_date": "2026-07-15",
-            "rating": 7.9,
-            "popularity": 120,
-            "overview": "Sample overview for Sample English Blockbuster. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "JioHotstar"
-            ]
-          },
-          {
-            "title": "Sample English Limited Series",
-            "media_type": "tv",
-            "language": "en",
-            "release_date": "2026-07-16",
-            "rating": 8.4,
-            "popularity": 90,
-            "overview": "Sample overview for Sample English Limited Series. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "Apple TV+"
-            ]
-          }
-        ],
-        "popular": [
-          {
-            "title": "Sample Telugu Action Epic",
-            "media_type": "movie",
-            "language": "te",
-            "release_date": "2026-07-15",
-            "rating": 8.0,
-            "popularity": 150,
-            "overview": "Sample overview for Sample Telugu Action Epic. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "Netflix"
-            ]
-          },
-          {
-            "title": "Sample Korean Survival Show",
-            "media_type": "tv",
-            "language": "ko",
-            "release_date": "2026-07-16",
-            "rating": 8.6,
-            "popularity": 200,
-            "overview": "Sample overview for Sample Korean Survival Show. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "Netflix"
-            ]
-          }
-        ]
-      }
-    },
-    "coming_up": {
-      "start": "2026-07-17",
-      "end": "2026-07-23",
-      "sections": {
-        "hindi": [
-          {
-            "title": "Sample Hindi Thriller",
-            "media_type": "movie",
-            "language": "hi",
-            "release_date": "2026-07-17",
-            "rating": 7.4,
-            "popularity": 80,
-            "overview": "Sample overview for Sample Hindi Thriller. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "Netflix"
-            ]
-          },
-          {
-            "title": "Sample Hindi Drama S2",
-            "media_type": "tv",
-            "language": "hi",
-            "release_date": "2026-07-18",
-            "rating": 8.1,
-            "popularity": 65,
-            "overview": "Sample overview for Sample Hindi Drama S2. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "Amazon Prime Video"
-            ]
-          }
-        ],
-        "english": [
-          {
-            "title": "Sample English Blockbuster",
-            "media_type": "movie",
-            "language": "en",
-            "release_date": "2026-07-17",
-            "rating": 7.9,
-            "popularity": 120,
-            "overview": "Sample overview for Sample English Blockbuster. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "JioHotstar"
-            ]
-          },
-          {
-            "title": "Sample English Limited Series",
-            "media_type": "tv",
-            "language": "en",
-            "release_date": "2026-07-18",
-            "rating": 8.4,
-            "popularity": 90,
-            "overview": "Sample overview for Sample English Limited Series. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "Apple TV+"
-            ]
-          }
-        ],
-        "popular": [
-          {
-            "title": "Sample Telugu Action Epic",
-            "media_type": "movie",
-            "language": "te",
-            "release_date": "2026-07-17",
-            "rating": 8.0,
-            "popularity": 150,
-            "overview": "Sample overview for Sample Telugu Action Epic. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "Netflix"
-            ]
-          },
-          {
-            "title": "Sample Korean Survival Show",
-            "media_type": "tv",
-            "language": "ko",
-            "release_date": "2026-07-18",
-            "rating": 8.6,
-            "popularity": 200,
-            "overview": "Sample overview for Sample Korean Survival Show. Replace with real TMDB data on the next scheduled run.",
-            "tmdb_url": "https://www.themoviedb.org/",
-            "poster_url": null,
-            "providers": [
-              "Netflix"
-            ]
-          }
-        ]
       }
     }
   }
