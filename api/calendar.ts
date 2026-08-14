@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { getDb } from "../lib/db";
-import { getCalendarMonth } from "../lib/calendarDb";
+import { getDb } from "../lib/db.js";
+import { getCalendarMonth } from "../lib/calendarDb.js";
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 

@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { getDb } from "../lib/db";
-import type { DigestResponse, DigestWindow, ReleaseItemDTO, SectionKey, WindowKind } from "../shared/types/release";
+import { getDb } from "../lib/db.js";
+import type { DigestResponse, DigestWindow, ReleaseItemDTO, SectionKey, WindowKind } from "../shared/types/release.js";
 
 const SECTION_ORDER: SectionKey[] = ["hindi", "english", "popular"];
 const WINDOW_KINDS: WindowKind[] = ["out_now", "coming_up"];

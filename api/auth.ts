@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { createSessionCookie, clearSessionCookie, isAuthenticated, checkPassphrase } from "../lib/auth";
+import { createSessionCookie, clearSessionCookie, isAuthenticated, checkPassphrase } from "../lib/auth.js";
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {

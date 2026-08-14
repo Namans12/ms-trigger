@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { requireAuth } from "../lib/auth";
+import { requireAuth } from "../lib/auth.js";
 
 const REPO_OWNER = "Namans12";
 const REPO_NAME = "ms-trigger";

@@ -5,7 +5,7 @@ import type {
   CustomListDTO,
   AddWatchlistItemBody,
   Bucket,
-} from "../shared/types/watchlist";
+} from "../shared/types/watchlist.js";
 
 function toItemDTO(row: any): WatchlistItemDTO {
   return {

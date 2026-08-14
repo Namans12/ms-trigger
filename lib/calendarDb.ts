@@ -1,5 +1,5 @@
 import type postgres from "postgres";
-import type { CalendarEntryDTO } from "../shared/types/calendar";
+import type { CalendarEntryDTO } from "../shared/types/calendar.js";
 
 function dedupeKey(title: string, releaseDate: string): string {
   return `${title.trim().toLowerCase()}::${releaseDate}`;
