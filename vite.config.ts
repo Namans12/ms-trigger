@@ -9,6 +9,9 @@ export default defineConfig({
   server: {
     host: "::",
     port: 8080,
+    // Fail loudly instead of silently drifting to 8081/8082/... on a stale
+    // instance — that drift is what makes "which URL is it on now?" happen.
+    strictPort: true,
     // Dev-only — `server.proxy` has no effect on `vite build`. Forwards /api
     // to scripts/dev-api-server.mjs, which runs the real api/**.ts handlers
     // against the real database (see `npm run dev:full`).

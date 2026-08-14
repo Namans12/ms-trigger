@@ -100,6 +100,18 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    // A previous `npm run dev:full` is almost always still alive on this
+    // port — that instance is already serving requests fine, so exit quietly
+    // instead of a stack trace that reads like a crash.
+    console.log(`[dev-api] port ${PORT} is already in use — another dev-api-server is likely still running there.`);
+    console.log(`[dev-api] if it's stale, stop it first (Windows: find its PID with \`netstat -ano | findstr :${PORT}\`, then \`taskkill /PID <pid> /F\`).`);
+    process.exit(0);
+  }
+  throw err;
+});
+
 server.listen(PORT, () => {
   console.log(`[dev-api] listening on http://localhost:${PORT} (proxied from Vite at /api)`);
 });
