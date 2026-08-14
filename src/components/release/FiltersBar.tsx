@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search, Film, Tv, LayoutGrid } from "lucide-react";
 import type { SectionKey } from "../../../shared/types/release";
 
 export type SectionFilter = "all" | SectionKey;
@@ -17,10 +17,45 @@ interface FiltersBarProps {
 
 const SECTION_CHIPS: { id: SectionFilter; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "hindi", label: "🇮🇳 Hindi" },
-  { id: "english", label: "🌍 English" },
-  { id: "popular", label: "🔥 Popular" },
+  { id: "hindi", label: "Hindi" },
+  { id: "english", label: "English" },
+  { id: "popular", label: "Popular" },
 ];
+
+const TYPE_CHIPS: { id: "all" | "movie" | "tv"; label: string; icon?: React.ReactNode }[] = [
+  { id: "all", label: "All types", icon: <LayoutGrid size={12} /> },
+  { id: "movie", label: "Movies", icon: <Film size={12} /> },
+  { id: "tv", label: "Shows", icon: <Tv size={12} /> },
+];
+
+function ToggleChips<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { id: T; label: string; icon?: React.ReactNode }[];
+  value: T;
+  onChange: (id: T) => void;
+}) {
+  return (
+    <div className="flex gap-1.5 overflow-x-auto hide-scrollbar">
+      {options.map((opt) => (
+        <button
+          key={opt.id}
+          onClick={() => onChange(opt.id)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium leading-none whitespace-nowrap transition-all duration-200 ${
+            value === opt.id
+              ? "bg-accent text-accent-foreground"
+              : "text-muted-foreground bg-secondary hover:text-foreground"
+          }`}
+        >
+          {opt.icon}
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function FiltersBar({
   section, onSectionChange, mediaType, onMediaTypeChange,
@@ -42,47 +77,39 @@ export function FiltersBar({
         />
       </div>
 
-      <div className="flex gap-1.5 overflow-x-auto hide-scrollbar">
-        {SECTION_CHIPS.map((chip) => (
-          <button
-            key={chip.id}
-            onClick={() => onSectionChange(chip.id)}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium leading-none whitespace-nowrap transition-all duration-200 ${
-              section === chip.id
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground bg-secondary hover:text-foreground"
-            }`}
-          >
-            {chip.label}
-          </button>
-        ))}
-      </div>
+      <ToggleChips options={SECTION_CHIPS} value={section} onChange={onSectionChange} />
+      <ToggleChips options={TYPE_CHIPS} value={mediaType} onChange={onMediaTypeChange} />
 
-      <div className="flex gap-2">
-        <select
-          value={platform}
-          onChange={(e) => onPlatformChange(e.target.value)}
-          aria-label="Filter by platform"
-          className="flex-1 px-3 py-2 bg-card border border-border rounded-lg text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-accent/40"
-        >
-          <option value="all">All platforms</option>
-          {platforms.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-        <select
-          value={mediaType}
-          onChange={(e) => onMediaTypeChange(e.target.value as "all" | "movie" | "tv")}
-          aria-label="Filter by type"
-          className="px-3 py-2 bg-card border border-border rounded-lg text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-accent/40"
-        >
-          <option value="all">All types</option>
-          <option value="movie">Movies</option>
-          <option value="tv">Shows</option>
-        </select>
-      </div>
+      {platforms.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Platform</p>
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              onClick={() => onPlatformChange("all")}
+              className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium leading-none whitespace-nowrap transition-all duration-200 ${
+                platform === "all"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground bg-secondary hover:text-foreground"
+              }`}
+            >
+              All platforms
+            </button>
+            {platforms.map((p) => (
+              <button
+                key={p}
+                onClick={() => onPlatformChange(p)}
+                className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium leading-none whitespace-nowrap transition-all duration-200 ${
+                  platform === p
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground bg-secondary hover:text-foreground"
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

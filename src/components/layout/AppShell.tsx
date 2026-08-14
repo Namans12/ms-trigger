@@ -6,7 +6,7 @@ export function AppShell() {
   return (
     <div className="min-h-screen bg-background">
       <Topbar />
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Outlet />
       </main>
       <Footer />

@@ -79,7 +79,7 @@ export function ReleaseCard({
                 icon={<Plus size={11} strokeWidth={2.5} className="shrink-0" />}
                 label="Watchlist"
                 className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-accent/15 text-accent text-[11px] font-semibold leading-none hover:bg-accent/25 active:scale-95"
-                successClassName="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-green-500/20 text-green-400 text-[11px] font-semibold leading-none"
+                successClassName="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-watched/20 text-watched text-[11px] font-semibold leading-none"
               />
             )}
             {onAddToWatchLater && (
@@ -88,7 +88,7 @@ export function ReleaseCard({
                 icon={<Clock size={11} className="shrink-0" />}
                 label="Later"
                 className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-secondary text-secondary-foreground text-[11px] font-medium leading-none hover:bg-card-hover active:scale-95"
-                successClassName="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-green-500/20 text-green-400 text-[11px] font-medium leading-none"
+                successClassName="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-watched/20 text-watched text-[11px] font-medium leading-none"
               />
             )}
             {onMarkWatched && (
@@ -97,7 +97,7 @@ export function ReleaseCard({
                 icon={<Eye size={11} className="shrink-0" />}
                 label="Watched"
                 className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-watched/15 text-watched text-[11px] font-semibold leading-none hover:bg-watched/25 active:scale-95"
-                successClassName="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-green-500/20 text-green-400 text-[11px] font-semibold leading-none"
+                successClassName="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-watched/20 text-watched text-[11px] font-semibold leading-none"
               />
             )}
             {onAddToList && (

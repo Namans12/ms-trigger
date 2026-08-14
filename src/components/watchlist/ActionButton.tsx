@@ -21,7 +21,7 @@ export function ActionButton({ onClick, icon, label, className, successClassName
   return (
     <button
       onClick={handleClick}
-      className={`${added ? (successClassName || 'bg-green-500/20 text-green-400') : className} transition-all duration-200`}
+      className={`${added ? (successClassName || 'bg-watched/20 text-watched') : className} transition-all duration-200`}
       disabled={added}
     >
       {added ? (

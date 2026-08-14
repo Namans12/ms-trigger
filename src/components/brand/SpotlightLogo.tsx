@@ -3,7 +3,7 @@ interface SpotlightLogoProps {
   className?: string;
 }
 
-/** The spotlight-cone mark alone — used in the topbar, favicon, and PWA icons. */
+/** The spotlight-fixture mark alone — used in the topbar, favicon, and PWA icons. */
 export function SpotlightLogo({ size = 28, className = "" }: SpotlightLogoProps) {
   return (
     <svg
@@ -15,27 +15,18 @@ export function SpotlightLogo({ size = 28, className = "" }: SpotlightLogoProps)
       aria-label="Spotlight"
     >
       <defs>
-        <linearGradient id="spotlight-beam" x1="30%" y1="0%" x2="70%" y2="100%">
-          <stop offset="0%" stopColor="#ffd166" />
-          <stop offset="100%" stopColor="#ffa11a" />
+        <linearGradient id="spotlight-beam" x1="16" y1="6" x2="16" y2="29" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#d9bd8f" />
+          <stop offset="100%" stopColor="#b99079" />
         </linearGradient>
-        <radialGradient id="spotlight-source" cx="50%" cy="30%" r="70%">
-          <stop offset="0%" stopColor="#fff7e6" />
-          <stop offset="100%" stopColor="#ffd166" />
-        </radialGradient>
       </defs>
-      {/* beam: narrow near the source (top-right), widening toward the bottom-left */}
+      <circle cx="16" cy="6.2" r="2.4" fill="url(#spotlight-beam)" />
       <path
-        d="M22 3
-           C 24.5 3 26 5 25 7.3
-           L 12 26.5
-           C 10.3 29 6.6 28 6.9 25.1
-           L 17.4 6.2
-           C 18.1 4.3 19.9 3 22 3 Z"
+        d="M11.4 10.2 L20.6 10.2 L25.4 25.6 C25.9 27.2 24.7 28.8 23 28.8 L9 28.8 C7.3 28.8 6.1 27.2 6.6 25.6 Z"
         fill="url(#spotlight-beam)"
+        opacity="0.92"
       />
-      {/* bright source ellipse at the narrow end */}
-      <ellipse cx="21.2" cy="6.4" rx="3.6" ry="2.6" fill="url(#spotlight-source)" transform="rotate(-40 21.2 6.4)" />
+      <ellipse cx="16" cy="24.6" rx="5.6" ry="1.5" fill="#292728" opacity="0.35" />
     </svg>
   );
 }
@@ -52,11 +43,11 @@ export function SpotlightWordmark({ iconSize = 30, className = "", showTagline =
     <div className={`flex items-center gap-2.5 ${className}`}>
       <SpotlightLogo size={iconSize} />
       <div>
-        <span className="font-display text-xl font-extrabold tracking-tight leading-none text-gradient">
+        <span className="font-display text-xl font-semibold tracking-tight leading-none text-foreground">
           Spotlight
         </span>
         {showTagline && (
-          <p className="text-[10px] font-semibold tracking-[0.14em] uppercase text-muted-foreground mt-0.5">
+          <p className="text-[10px] font-medium tracking-[0.14em] uppercase text-muted-foreground mt-0.5">
             Find what&apos;s worth watching
           </p>
         )}

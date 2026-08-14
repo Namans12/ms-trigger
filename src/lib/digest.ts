@@ -5,9 +5,9 @@ import type { SectionKey } from "../../shared/types/release";
 export const SECTION_ORDER: SectionKey[] = ["hindi", "english", "popular"];
 
 export const SECTION_LABELS: Record<SectionKey, string> = {
-  hindi: "🇮🇳 Hindi OTT",
-  english: "🌍 English OTT",
-  popular: "🔥 Popular (Other Languages)",
+  hindi: "Hindi OTT",
+  english: "English OTT",
+  popular: "Popular (Other Languages)",
 };
 
 export interface DigestFilters {

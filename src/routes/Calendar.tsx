@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearchParams, Link } from 'react-router-dom';
 import { fetchCalendarMonth } from '@/lib/api';
 import type { CalendarEntryDTO } from '../../shared/types/calendar';
-import { ChevronLeft, ChevronRight, Loader2, Film, Tv, Clapperboard } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Film, Tv, Clapperboard, Star } from 'lucide-react';
 
 function currentMonth(): string {
   const now = new Date();
@@ -104,7 +104,9 @@ export default function Calendar() {
                         </div>
                       </div>
                       {entry.rating != null && (
-                        <span className="text-xs text-gold font-semibold shrink-0">★ {entry.rating.toFixed(1)}</span>
+                        <span className="inline-flex items-center gap-0.5 text-xs text-gold font-semibold shrink-0">
+                          <Star size={11} fill="currentColor" /> {entry.rating.toFixed(1)}
+                        </span>
                       )}
                     </div>
                   );

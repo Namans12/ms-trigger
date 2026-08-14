@@ -34,7 +34,7 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-40 glass border-b border-border">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <NavLink to="/">
           <SpotlightWordmark />
         </NavLink>
@@ -81,7 +81,7 @@ export function Topbar() {
               className={({ isActive }) =>
                 `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium leading-none whitespace-nowrap transition-all duration-200 ${
                   isActive
-                    ? 'bg-accent text-accent-foreground shadow-[0_2px_8px_-2px_hsl(35_100%_55%/0.4)]'
+                    ? 'bg-accent text-accent-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary hover:shadow-sm'
                 }`
               }

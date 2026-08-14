@@ -1,47 +1,47 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
 :root {
-  --background: #0d0f14;
-  --foreground: #e8eaf0;
+  --background: #292728;
+  --foreground: #e8e1d8;
 
-  --card: #15181f;
-  --card-foreground: #e8eaf0;
-  --card-hover: #1b1f28;
+  --card: #322f30;
+  --card-foreground: #e8e1d8;
+  --card-hover: #3b3738;
 
-  --popover: #15181f;
-  --popover-foreground: #e8eaf0;
+  --popover: #322f30;
+  --popover-foreground: #e8e1d8;
 
-  --primary: #ffa11a;
-  --primary-foreground: #0d0f14;
+  --primary: #ccac7c;
+  --primary-foreground: #29241c;
 
-  --secondary: #1b1f28;
-  --secondary-foreground: #c4c9d4;
+  --secondary: #3b3738;
+  --secondary-foreground: #cbc3bc;
 
-  --muted: #1b1f28;
-  --muted-foreground: #7d8598;
+  --muted: #3b3738;
+  --muted-foreground: #948b81;
 
-  --accent: #ffa11a;
-  --accent-end: #ffd166;
-  --accent-foreground: #0d0f14;
-  --accent-dim: #b3720f;
+  --accent: #ccac7c;
+  --accent-end: #b99079;
+  --accent-foreground: #29241c;
+  --accent-dim: #8c7250;
 
-  --destructive: #e6444a;
+  --destructive: #b5605a;
   --destructive-foreground: #ffffff;
 
-  --border: #232734;
-  --input: #232734;
-  --ring: #ffa11a;
+  --border: #3d3838;
+  --input: #3d3838;
+  --ring: #ccac7c;
 
   --radius: 0.75rem;
 
-  --watched: #2fcf8e;
-  --danger: #e6444a;
-  --gold: #ffd166;
+  --watched: #8fa37a;
+  --danger: #b5605a;
+  --gold: #d9bd8f;
 
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-display: 'Outfit', system-ui, sans-serif;
+  --font-display: 'Fraunces', 'Inter', system-ui, sans-serif;
 }
 
 @theme {
@@ -72,7 +72,7 @@
   --color-gold: var(--gold);
 
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-display: 'Outfit', system-ui, sans-serif;
+  --font-display: 'Fraunces', 'Inter', system-ui, sans-serif;
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -112,7 +112,7 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
-    line-height: 1.35;
+    line-height: 1.4;
   }
 
   svg {
@@ -143,7 +143,7 @@
   .hide-scrollbar::-webkit-scrollbar { display: none; }
 
   .glass {
-    background: rgb(21 24 31 / 0.8);
+    background: rgb(41 39 40 / 0.82);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
   }

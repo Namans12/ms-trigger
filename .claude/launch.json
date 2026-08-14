@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "preview", "--", "--port", "5184"],
       "port": 5184
+    },
+    {
+      "name": "spotlight-vercel-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vercel", "dev", "--listen", "5186", "--yes"],
+      "port": 5186
     }
   ]
 }

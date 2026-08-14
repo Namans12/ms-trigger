@@ -109,14 +109,14 @@ export default function TitleDetail() {
               icon={<Plus size={12} strokeWidth={2.5} />}
               label="Watchlist"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-accent-foreground text-xs font-semibold hover:brightness-110 active:scale-95 transition-all"
-              successClassName="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-500/20 text-green-400 text-xs font-semibold"
+              successClassName="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-watched/20 text-watched text-xs font-semibold"
             />
             <ActionButton
               onClick={() => wl.addToWatchLater(movie)}
               icon={<Clock size={12} />}
               label="Watch Later"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:bg-card-hover active:scale-95 transition-all"
-              successClassName="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium"
+              successClassName="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-watched/20 text-watched text-xs font-medium"
             />
           </>
         ) : (

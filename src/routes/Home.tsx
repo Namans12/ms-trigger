@@ -5,7 +5,7 @@ import { fromDigestDTO } from '@/types/digest';
 import { SECTION_ORDER, allProviders, matchesFilters } from '@/lib/digest';
 import { FiltersBar, type SectionFilter } from '@/components/release/FiltersBar';
 import { SectionBlock } from '@/components/release/SectionBlock';
-import { Loader2, Radio } from 'lucide-react';
+import { Loader2, Radio, PlayCircle, CalendarClock } from 'lucide-react';
 
 type WindowKey = 'out_now' | 'coming_up';
 
@@ -70,11 +70,12 @@ export default function Home() {
           <button
             key={w}
             onClick={() => updateParam('window', w === 'out_now' ? '' : w)}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold leading-none transition-all ${
+            className={`flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold leading-none transition-all ${
               windowKey === w ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {w === 'out_now' ? `🟢 Out Now` : `🔵 Coming Up`}
+            {w === 'out_now' ? <PlayCircle size={13} /> : <CalendarClock size={13} />}
+            {w === 'out_now' ? 'Out Now' : 'Coming Up'}
           </button>
         ))}
       </div>

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Search as SearchIcon, Loader2 } from 'lucide-react';
 import { Movie } from '@/types/movie';
 import { searchMovies } from '@/lib/tmdb';
-import { ReleaseCard } from '@/components/release/ReleaseCard';
+import { PosterCard } from '@/components/release/PosterCard';
 import { fromMovie } from '@/types/digest';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
 
@@ -79,9 +79,9 @@ export default function Search() {
 
       {results.length > 0 && <p className="text-xs text-muted-foreground">{results.length} results</p>}
 
-      <div className="space-y-2 max-h-[65vh] overflow-y-auto hide-scrollbar">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
         {results.map((movie) => (
-          <ReleaseCard
+          <PosterCard
             key={movie.id}
             item={fromMovie(movie)}
             onAddToWatchlist={() => wl.addToWatchlist(movie)}
