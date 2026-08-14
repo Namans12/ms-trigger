@@ -5,5 +5,10 @@
     "api/**/*.ts": {
       "maxDuration": 15
     }
+  },
+  "build": {
+    "env": {
+      "UV_LINK_MODE": "copy"
+    }
   }
 }
