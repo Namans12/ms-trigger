@@ -1,21 +1,22 @@
-# Testing OTT Radar
+# Testing Spotlight
 
 ## Script pipeline (no secrets needed)
 
 ```bash
 pip install -r requirements.txt
 
-# Sample data, nothing sent, writes docs/data.json + docs/history.json:
+# Sample data, nothing sent. Writes to Postgres too if DATABASE_URL is set:
 DRY_RUN=true USE_SAMPLE_DATA=true python releasebot.py
 ```
 
 Expected: a plain-text digest preview is printed (Out Now + Coming Up, each with
-Hindi / English / Popular sections grouped by platform) and the exit code is 0.
+Hindi / English / Popular sections grouped by platform), a line noting rows
+written to `release_items` (if `DATABASE_URL` is set), and exit code 0.
 
 With a real TMDB key (still nothing sent):
 
 ```bash
-DRY_RUN=true TMDB_API_KEY=<key> python releasebot.py
+DRY_RUN=true TMDB_API_KEY=<key> DATABASE_URL=<url> python releasebot.py
 ```
 
 Expect a `news: N candidates -> M TMDB-confirmed -> K placed` line on stderr and
@@ -53,50 +54,61 @@ print(rb.compute_windows(date(2026, 7, 17)))  # a Friday
 EOF
 ```
 
-## Dashboard (PWA in docs/)
+## Postgres write path
 
 ```bash
-cd docs && python -m http.server 8000
+python -c "
+import os, psycopg
+conn = psycopg.connect(os.environ['DATABASE_URL'])
+with conn.cursor() as cur:
+    cur.execute('SELECT tmdb_id, media_type, title, section, window_kind FROM release_items ORDER BY tmdb_id')
+    for row in cur.fetchall():
+        print(row)
+"
 ```
 
-Open http://localhost:8000 and check:
-- Out Now / Coming Up / Past Digests tabs render cards grouped by platform
-- Search box, section chips (Hindi/English/Popular), platform + type dropdowns filter cards
-- Source badge shows "Snapshot …" (static host) and the Refresh button alerts about
-  needing the Vercel deployment — that's the expected fallback
-- No console errors beyond the expected /api/releases 404 probe on static hosts
-
-## Live API (Vercel function)
-
-`api/releases.py` wraps `releasebot.build_digest_payload()`. Test the full
-live path locally with a combined server:
+## Frontend
 
 ```bash
-python - <<'EOF'
-import json, os, sys
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-os.environ["USE_SAMPLE_DATA"] = "true"   # or set TMDB_API_KEY for real data
-sys.path.insert(0, os.getcwd())
-import releasebot
-class H(SimpleHTTPRequestHandler):
-    def __init__(self, *a, **kw): super().__init__(*a, directory="docs", **kw)
-    def do_GET(self):
-        if self.path.startswith("/api/releases"):
-            b = json.dumps(releasebot.build_digest_payload()).encode()
-            self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(b)
-        else: super().do_GET()
-ThreadingHTTPServer(("127.0.0.1", 8788), H).serve_forever()
-EOF
+npm install
+npm run dev   # served at whatever port Vite picks (see .claude/launch.json)
 ```
 
-On http://127.0.0.1:8788 the badge should show "LIVE" and the Refresh button
-should re-fetch (badge "LIVE · just fetched").
+Check:
+- Home, Browse, Search, Calendar (stub), My List, and a 404 path all render without console errors
+- Home shows a graceful "could not load releases yet" state under plain `npm run dev` — `/api/*` functions only run under `vercel dev` or on Vercel itself, not the Vite dev server
+- Filters on Home (section/platform/type/search) round-trip through URL search params and survive a reload
+- The service worker registers and TMDB poster images still load
 
-Playwright (chromium) is available for headless screenshot checks if needed.
+## Live API (Vercel functions)
 
-## Workflow
+`api/releases.ts` reads precomputed `release_items` rows from Postgres — it does
+NOT call TMDB live. To exercise the full live-fetch pipeline manually instead
+(the pre-Postgres behavior, kept only as a debugging escape hatch):
 
-`.github/workflows/ott-radar.yml` — cron `30 8 * * 3,5` = Wed & Fri 2:00 PM IST.
-Manual runs via workflow_dispatch support a `dry_run` input. The job commits
-updated `docs/data.json` / `docs/history.json` back to the branch (needs
-`contents: write`, already set).
+```bash
+TMDB_API_KEY=<key> python -c "
+import sys; sys.path.insert(0, '.')
+from scripts.legacy_live_releases import build_payload
+import json
+print(json.dumps(build_payload(), indent=2, ensure_ascii=False))
+"
+```
+
+Expect this to take 30-60+ seconds — it fans out 300-500 TMDB requests, which
+is exactly the problem the Postgres precompute pipeline was built to avoid.
+
+To test `api/releases.ts` and the other TS functions against the real Vercel
+runtime locally, use `vercel dev` (requires the Vercel CLI and the project's
+env vars set locally).
+
+## Workflows
+
+- `.github/workflows/ott-radar.yml` — cron `30 8 * * 3,5` = Wed & Fri 2:00 PM
+  IST. Refreshes Postgres, sends Telegram + email. Manual runs via
+  `workflow_dispatch` support a `dry_run` input.
+- `.github/workflows/ott-radar-nightly.yml` — cron `30 20 * * *` = 2:00 AM IST
+  daily. Refreshes Postgres only (`DRY_RUN=true`), no notifications.
+
+Neither workflow commits anything back to the repo anymore — Postgres is the
+only write target, so no `contents: write` permission is needed.

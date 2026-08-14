@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "outputDirectory": "docs",
+  "outputDirectory": "dist",
   "functions": {
-    "api/releases.py": {
-      "maxDuration": 60
+    "api/**/*.ts": {
+      "maxDuration": 15
     }
   }
 }

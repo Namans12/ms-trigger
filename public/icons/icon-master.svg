@@ -1,0 +1,25 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="beam" x1="30%" y1="0%" x2="70%" y2="100%">
+      <stop offset="0%" stop-color="#ffd166" />
+      <stop offset="100%" stop-color="#ffa11a" />
+    </linearGradient>
+    <radialGradient id="source" cx="50%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#fff7e6" />
+      <stop offset="100%" stop-color="#ffd166" />
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#0d0f14" />
+  <g transform="translate(256 256) scale(11) translate(-16 -16)">
+    <path
+      d="M 23.6 4.8
+         A 1.65 1.65 0 0 1 20.6 3.4
+         L 6.0 25.6
+         A 4.0 4.0 0 0 0 13.4 28.6
+         L 23.6 4.8
+         Z"
+      fill="url(#beam)"
+    />
+    <ellipse cx="22.1" cy="4.1" rx="2.2" ry="1.6" fill="url(#source)" transform="rotate(34 22.1 4.1)" />
+  </g>
+</svg>

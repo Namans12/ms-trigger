@@ -1,8 +1,10 @@
-# OTT Radar (ReleaseBot)
+# Spotlight
 
-A free twice-weekly OTT release alert for India: Telegram push + email digest + an installable web dashboard (PWA).
+*Find what's worth watching.*
 
-It runs **every Wednesday and Friday at 2:00 PM IST** using GitHub Actions, fetches OTT release data from TMDB, sends a Telegram digest, sends a visual email digest, and updates a GitHub Pages dashboard.
+A twice-weekly OTT release radar for India, plus a personal watchlist — one React app, backed by Postgres, deployed on Vercel.
+
+It runs **every Wednesday and Friday at 2:00 PM IST** (plus a nightly refresh) using GitHub Actions: fetches OTT release data from TMDB, writes it to Postgres, sends a Telegram digest, and sends a visual email digest. The live site reads precomputed data straight from Postgres — no TMDB calls happen on a visitor's request.
 
 ## What You Get
 
@@ -18,21 +20,28 @@ Both parts are split into three sections, grouped by streaming platform:
 - 🌍 **English OTT** — movies + shows
 - 🔥 **Popular (Other Languages)** — any-language releases above a popularity threshold (big Tamil / Telugu / Korean / Spanish titles surface automatically)
 
-## Delivery Channels
+Plus, on the site itself: Browse (trending/popular rows), Search (full TMDB multi-search), and a private **My List** section (watchlist, watch later, watched, custom lists) synced to Postgres behind a passphrase.
 
-| Channel | What |
+## Architecture
+
+| Piece | What |
 |---|---|
-| Telegram | Instant push at 2 PM IST |
-| Email | Visual HTML cards with posters, ratings, summaries, TMDB links |
-| **Dashboard (PWA)** | GitHub Pages site in `docs/` — poster grid, Out Now / Coming Up / Past Digests tabs, search, and platform / language / type filters. Installable on your phone via "Add to Home Screen". |
+| `releasebot.py` | The TMDB fetch pipeline. Runs only as a GitHub Action (Wed/Fri + nightly). Writes to Postgres. |
+| Postgres (Neon) | Source of truth for releases, the calendar, and the private watchlist. |
+| `api/*.ts` | Vercel serverless functions — DB reads, TMDB proxy (search/trending), auth, watchlist CRUD. |
+| `src/` | The React + Vite + Tailwind SPA (this is what's served at your domain). |
+| Telegram + Email | Delivery channels, sent by the same GitHub Action that refreshes Postgres. |
+
+The public site (Home, Browse, Search, Calendar) needs no login. The private **My List** section is gated behind a single owner passphrase.
 
 ## What It Uses
 
-- GitHub Actions: free scheduled runner, no server needed
+- GitHub Actions: free scheduled runner for the fetch pipeline, no server needed
+- Neon Postgres: free-tier serverless Postgres
+- Vercel: hosts the React app + API functions
 - TMDB API: movie, show, release, rating, poster, and provider data
 - Telegram Bot API: instant push notification
 - SMTP email: searchable archive in your inbox
-- GitHub Pages: hosts the dashboard from the `docs/` folder
 
 ## Setup
 
@@ -57,8 +66,8 @@ Both parts are split into three sections, grouped by streaming platform:
 
 1. Create a free account: https://www.themoviedb.org/signup
 2. Verify your email, then go to **Profile icon (top-right) → Settings → API** (or go directly to https://www.themoviedb.org/settings/api).
-3. Click **Create** under "Request an API Key" → choose **Developer** → fill the short form (any app name/URL works, e.g. "OTT Radar" / your GitHub repo URL) → Submit.
-4. Once approved (usually instant), copy the **API Key (v3 auth)** value — this is your `TMDB_API_KEY`. (Don't use the "API Read Access Token" — that's the longer v4 bearer token; the workflow expects the v3 key.)
+3. Click **Create** under "Request an API Key" → choose **Developer** → fill the short form (any app name/URL works) → Submit.
+4. Once approved (usually instant), copy the **API Key (v3 auth)** value — this is your `TMDB_API_KEY`. (Don't use the "API Read Access Token" — that's the longer v4 bearer token; this project expects the v3 key.)
 
 ### 4. Get email-sending credentials (Gmail example)
 
@@ -66,52 +75,58 @@ Using your own Gmail (or any account) as the sender needs an **app password**, n
 
 1. Go to https://myaccount.google.com/security and make sure **2-Step Verification** is turned ON (app passwords require it).
 2. Go to https://myaccount.google.com/apppasswords (or search "App passwords" in Google Account settings).
-3. Under "App name" type something like `OTT Radar` and click **Create**.
+3. Under "App name" type something like `Spotlight` and click **Create**.
 4. Google shows a 16-character password (spaces don't matter) — copy it. This is your `SMTP_PASSWORD`.
 5. Your values:
-   - `SMTP_USERNAME` → your full Gmail address (e.g. `yourname@gmail.com`)
+   - `SMTP_USERNAME` → your full Gmail address
    - `SMTP_PASSWORD` → the 16-character app password from step 4
    - `EMAIL_FROM` → same Gmail address (or leave unset — it defaults to `SMTP_USERNAME`)
-   - `EMAIL_TO` → the inbox you want the digest delivered to (can be the same Gmail address, or any other email)
+   - `EMAIL_TO` → the inbox you want the digest delivered to
 
-   Using a different email provider instead of Gmail? Same idea — you just need that provider's SMTP host/port; ping me if you want Outlook/Yahoo/custom-domain instructions and I'll adjust the workflow's `SMTP_HOST`/`SMTP_PORT`.
+### 5. Provision Neon Postgres
 
-### 5. Add the secrets to GitHub
+1. Create a free project at https://neon.tech (pick a region close to your Vercel deployment region).
+2. Copy the pooled connection string.
+3. Run the migration once: `psql "$DATABASE_URL" -f migrations/0001_init.sql` (or via a Python one-liner with `psycopg` if you don't have `psql` installed).
+4. Optionally seed the editorial calendar: `python scripts/seed_calendar_csv.py`.
+
+### 6. Add secrets to GitHub
 
 1. Go to your repo on GitHub: `https://github.com/Namans12/ms-trigger`
 2. **Settings** tab (top of repo, not your account settings) → left sidebar **Secrets and variables → Actions**
 3. Click **New repository secret** for each of these, pasting the value and clicking **Add secret**:
 
-| Secret name | Value (from steps above) |
+| Secret name | Value |
 |---|---|
 | `TMDB_API_KEY` | TMDB v3 API key (step 3) |
+| `DATABASE_URL` | Neon connection string (step 5) |
 | `TELEGRAM_BOT_TOKEN` | Bot token from BotFather (step 1) |
 | `TELEGRAM_CHAT_ID` | Your chat ID (step 2) |
 | `SMTP_USERNAME` | Your Gmail address (step 4) |
 | `SMTP_PASSWORD` | 16-char Gmail app password (step 4) |
 | `EMAIL_FROM` | Sender address, usually same as `SMTP_USERNAME` |
 | `EMAIL_TO` | Where you want the digest delivered |
+| `AUTH_SECRET` | Random HMAC signing key for the owner-passphrase cookie: `openssl rand -hex 32` |
+| `OWNER_PASSPHRASE` | The passphrase that unlocks My List |
 
-That's 7 secrets total. Once saved, secret values are write-only — GitHub will never show them back to you (you'd need to update/replace, not view, if you forget one).
+And one repo **variable** (not secret) under the same page's "Variables" tab:
 
-### 6. Enable GitHub Pages (for the dashboard)
+| Variable name | Value |
+|---|---|
+| `DASHBOARD_URL` | Your deployed site URL, e.g. `https://your-project.vercel.app/` |
 
-Repo Settings > Pages > Source: **Deploy from a branch** > Branch: `main`, folder: `/docs`.
+### 7. Deploy to Vercel
 
-Your dashboard will be at `https://<username>.github.io/<repo>/`.
-
-### 7. Deploy to Vercel (for live on-demand refresh)
-
-1. Go to https://vercel.com → sign in with GitHub → **Add New… > Project** → import this repo.
-2. Leave build settings as-is (`vercel.json` already points the output to `docs/` and configures the API function).
-3. Under **Environment Variables**, add `TMDB_API_KEY` with the same TMDB key.
-4. Deploy. Your app is at `https://<project>.vercel.app/` — the **Refresh** button there fetches live TMDB data on demand; every push to `main` (including the twice-weekly data commits) auto-redeploys.
+1. Go to https://vercel.com → sign in with GitHub → **Add New… → Project** → import this repo.
+2. Framework preset: **Other** (not "Python" — this project is a Vite SPA + TS/Python functions, not a Python web framework).
+3. Under **Environment Variables**, add: `TMDB_API_KEY`, `DATABASE_URL`, `AUTH_SECRET`, `OWNER_PASSPHRASE`.
+4. Deploy. Every push to `main` auto-redeploys.
 
 ### 8. Done
 
-The workflow in `.github/workflows/ott-radar.yml` runs automatically Wednesday and Friday at 2:00 PM IST. You can also trigger it manually from the Actions tab (with an optional dry-run flag that updates the dashboard without sending Telegram/email).
+`.github/workflows/ott-radar.yml` runs Wed/Fri at 2:00 PM IST (Telegram + email + Postgres refresh). `.github/workflows/ott-radar-nightly.yml` runs daily (Postgres refresh only, no notifications). Both can be triggered manually from the Actions tab.
 
-## Configuration (env vars in the workflow)
+## Configuration (env vars)
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -121,40 +136,23 @@ The workflow in `.github/workflows/ott-radar.yml` runs automatically Wednesday a
 | `NEWS_ENABLED` | `true` | Augment TMDB with titles scraped from India OTT round-ups (see below) |
 | `NEWS_URLS` | — | Comma-separated extra article URLs to scrape (optional; e.g. a specific GQ/Deccan Herald round-up) |
 | `RELEASE_TIMEZONE` | `Asia/Kolkata` | Timezone used for date windows |
-| `DRY_RUN` | `false` | Skip Telegram/email, still write dashboard data |
+| `DRY_RUN` | `false` | Skip Telegram/email, still refresh Postgres |
 | `USE_SAMPLE_DATA` | `false` | Generate sample data without a TMDB key (local testing) |
-| `OUTPUT_DIR` | `docs` | Where `data.json` / `history.json` are written |
 | `DASHBOARD_URL` | — | Link included in Telegram/email digests |
+| `DATABASE_URL` | — | Neon Postgres connection string |
+| `TELEGRAM_ENABLED` | `true` | Toggle Telegram delivery |
+| `EMAIL_ENABLED` | `false` | Toggle email delivery |
 
-## News augmentation (why the digest is now fuller)
-
-TMDB's India OTT discover feeds are incomplete and often lag the real streaming
-calendar, so the digest used to miss titles that every "OTT releases this week"
-article lists. `news_sources.py` fixes this:
-
-1. It harvests candidate titles from editorially-curated Indian OTT round-ups —
-   **evergreen** via Google News India RSS (auto-updates weekly, no per-week URL
-   maintenance), plus any extra article URLs you set in `NEWS_URLS`.
-2. Every candidate is then **validated and enriched against TMDB** (real title,
-   language, rating, poster, watch providers, links). Anything TMDB can't confirm
-   as a near-term movie/show is dropped — that is the quality gate that filters
-   out the noise scraping inevitably picks up.
-3. Confirmed titles are merged into the Hindi / English / Popular sections and
-   bucketed into Out Now vs Coming Up by their TMDB date.
-
-Set `NEWS_ENABLED=false` to fall back to TMDB-only behavior.
-
-## Local testing
+## Local development
 
 ```bash
+# Python pipeline
 pip install -r requirements.txt
+DRY_RUN=true USE_SAMPLE_DATA=true python releasebot.py   # no keys needed, writes sample data to Postgres if DATABASE_URL is set
 
-# No keys needed — sample data, nothing sent:
-DRY_RUN=true USE_SAMPLE_DATA=true python releasebot.py
-
-# Real TMDB data, nothing sent:
-DRY_RUN=true TMDB_API_KEY=... python releasebot.py
-
-# Preview the dashboard:
-cd docs && python -m http.server 8000   # open http://localhost:8000
+# Frontend
+npm install
+npm run dev   # http://localhost:8080 (or the port vite picks)
 ```
+
+The `api/*.ts` functions only run under Vercel (`vercel dev`) or in production — plain `npm run dev` serves the frontend only, so pages that hit `/api/*` will show their "could not load" fallback state locally unless you run `vercel dev` instead.

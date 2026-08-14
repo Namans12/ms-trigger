@@ -1,0 +1,161 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #0d0f14;
+  --foreground: #e8eaf0;
+
+  --card: #15181f;
+  --card-foreground: #e8eaf0;
+  --card-hover: #1b1f28;
+
+  --popover: #15181f;
+  --popover-foreground: #e8eaf0;
+
+  --primary: #ffa11a;
+  --primary-foreground: #0d0f14;
+
+  --secondary: #1b1f28;
+  --secondary-foreground: #c4c9d4;
+
+  --muted: #1b1f28;
+  --muted-foreground: #7d8598;
+
+  --accent: #ffa11a;
+  --accent-end: #ffd166;
+  --accent-foreground: #0d0f14;
+  --accent-dim: #b3720f;
+
+  --destructive: #e6444a;
+  --destructive-foreground: #ffffff;
+
+  --border: #232734;
+  --input: #232734;
+  --ring: #ffa11a;
+
+  --radius: 0.75rem;
+
+  --watched: #2fcf8e;
+  --danger: #e6444a;
+  --gold: #ffd166;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Outfit', system-ui, sans-serif;
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-card-hover: var(--card-hover);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-end: var(--accent-end);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-dim: var(--accent-dim);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-watched: var(--watched);
+  --color-danger: var(--danger);
+  --color-gold: var(--gold);
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Outfit', system-ui, sans-serif;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-up: slide-up 0.4s ease-out;
+}
+
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes btn-press {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.93); }
+  100% { transform: scale(1); }
+}
+
+@layer base {
+  * { @apply border-border; }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    line-height: 1.35;
+  }
+
+  svg {
+    vertical-align: middle;
+  }
+
+  /* Global button press feedback */
+  button, [role="button"] {
+    transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+                background-color 0.2s ease,
+                box-shadow 0.2s ease,
+                opacity 0.2s ease,
+                color 0.2s ease,
+                border-color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:active:not(:disabled), [role="button"]:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+  .glass {
+    background: rgb(21 24 31 / 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, var(--accent), var(--accent-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bg-spotlight-gradient {
+    background: linear-gradient(135deg, var(--accent), var(--accent-end));
+  }
+}

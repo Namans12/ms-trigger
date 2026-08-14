@@ -10,7 +10,7 @@ Each digest has two parts:
   - "Out Now"   : releases from today until the day before the next run
   - "Coming Up" : releases in the ~7 days after that (forward preview)
 
-Delivery: Telegram push + HTML email + JSON feed for the GitHub Pages PWA.
+Delivery: Telegram push + HTML email + a Postgres table the web app reads.
 """
 
 from __future__ import annotations
@@ -25,7 +25,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
-from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -56,6 +55,7 @@ SECTION_EMOJI = {
 
 @dataclass(frozen=True)
 class ReleaseItem:
+    tmdb_id: int
     title: str
     media_type: str
     language: str
@@ -177,6 +177,7 @@ def poster_url(path: str | None) -> str | None:
 
 def normalize_movie(raw: dict[str, Any], providers: tuple[str, ...] = ()) -> ReleaseItem:
     return ReleaseItem(
+        tmdb_id=raw["id"],
         title=raw.get("title") or raw.get("original_title") or "Untitled",
         media_type="movie",
         language=raw.get("original_language") or "unknown",
@@ -192,6 +193,7 @@ def normalize_movie(raw: dict[str, Any], providers: tuple[str, ...] = ()) -> Rel
 
 def normalize_tv(raw: dict[str, Any], providers: tuple[str, ...] = ()) -> ReleaseItem:
     return ReleaseItem(
+        tmdb_id=raw["id"],
         title=raw.get("name") or raw.get("original_name") or "Untitled",
         media_type="tv",
         language=raw.get("original_language") or "unknown",
@@ -676,8 +678,12 @@ def run_diagnostics(tmdb: TmdbClient, start: date, end: date) -> None:
 
 
 def sample_sections(start: date) -> dict[str, list[ReleaseItem]]:
+    # Negative, sequential fake ids so sample data can never collide with a real TMDB id.
+    _counter = iter(range(-1, -1000, -1))
+
     def item(title: str, media_type: str, language: str, offset: int, provider: str, rating: float, pop: float) -> ReleaseItem:
         return ReleaseItem(
+            tmdb_id=next(_counter),
             title=title,
             media_type=media_type,
             language=language,
@@ -814,24 +820,24 @@ def email_item_card(item: ReleaseItem) -> str:
     poster = (
         f'<img src="{item.poster_url}" alt="" style="width:72px;height:108px;object-fit:cover;border-radius:8px;margin-right:14px;">'
         if item.poster_url
-        else '<div style="width:72px;height:108px;border-radius:8px;background:#e5e7eb;margin-right:14px;"></div>'
+        else '<div style="width:72px;height:108px;border-radius:8px;background:#1b1f28;margin-right:14px;"></div>'
     )
     provider_html = (
-        f'<div style="font-size:12px;color:#2563eb;font-weight:700;margin-top:5px;">{escape_html(providers)}</div>'
+        f'<div style="font-size:12px;color:#ffa11a;font-weight:700;margin-top:5px;">{escape_html(providers)}</div>'
         if providers
         else ""
     )
-    overview_html = f'<div style="font-size:13px;color:#4b5563;margin-top:7px;">{overview}</div>' if overview else ""
+    overview_html = f'<div style="font-size:13px;color:#9096a3;margin-top:7px;">{overview}</div>' if overview else ""
 
     return f"""
-      <div style="display:flex;padding:14px;border:1px solid #e5e7eb;border-radius:12px;margin:10px 0;background:#ffffff;">
+      <div style="display:flex;padding:14px;border:1px solid #232734;border-radius:12px;margin:10px 0;background:#15181f;">
         {poster}
         <div>
-          <div style="font-size:16px;font-weight:700;color:#111827;">{escape_html(item.title)}</div>
-          <div style="font-size:13px;color:#6b7280;margin-top:4px;">{kind} · {d} · ⭐ {rating_text(item.rating)}</div>
+          <div style="font-size:16px;font-weight:700;color:#e8eaf0;">{escape_html(item.title)}</div>
+          <div style="font-size:13px;color:#7d8598;margin-top:4px;">{kind} · {d} · <span style="color:#ffd166;">★ {rating_text(item.rating)}</span></div>
           {provider_html}
           {overview_html}
-          <div style="margin-top:8px;"><a href="{item.tmdb_url}" style="color:#2563eb;text-decoration:none;font-weight:700;">Open on TMDB</a></div>
+          <div style="margin-top:8px;"><a href="{item.tmdb_url}" style="color:#ffa11a;text-decoration:none;font-weight:700;">Open on TMDB</a></div>
         </div>
       </div>
     """
@@ -843,14 +849,14 @@ def email_sections_html(sections: dict[str, list[ReleaseItem]]) -> str:
         items = sections.get(section, [])
         title = f"{SECTION_EMOJI[section]} {SECTION_LABELS[section]}"
         if not items:
-            content = '<p style="color:#6b7280;margin-top:8px;">Nothing found for this section.</p>'
+            content = '<p style="color:#7d8598;margin-top:8px;">Nothing found for this section.</p>'
         else:
             groups = []
             for provider, provider_items in sorted(group_by_provider(items).items()):
                 groups.append(
                     f"""
                     <div style="margin-top:14px;">
-                      <h3 style="font-size:15px;margin:0 0 6px;color:#2563eb;">{escape_html(provider)}</h3>
+                      <h3 style="font-size:15px;margin:0 0 6px;color:#ffa11a;">{escape_html(provider)}</h3>
                       {"".join(email_item_card(item) for item in provider_items[:6])}
                     </div>
                     """
@@ -859,7 +865,7 @@ def email_sections_html(sections: dict[str, list[ReleaseItem]]) -> str:
         blocks.append(
             f"""
             <section style="margin-top:24px;">
-              <h2 style="font-size:20px;margin:0 0 8px;color:#111827;">{escape_html(title)}</h2>
+              <h2 style="font-size:20px;margin:0 0 8px;color:#e8eaf0;">{escape_html(title)}</h2>
               {content}
             </section>
             """
@@ -872,20 +878,21 @@ def format_email_html(digest: dict[str, Any]) -> str:
     if digest.get("dashboard_url"):
         dashboard_html = (
             f'<p style="margin:14px 0 0;"><a href="{digest["dashboard_url"]}" '
-            'style="color:#2563eb;font-weight:700;text-decoration:none;">🌐 Open the OTT Radar dashboard</a></p>'
+            'style="color:#ffa11a;font-weight:700;text-decoration:none;">🔦 Open Spotlight</a></p>'
         )
     return f"""<!doctype html>
 <html>
-  <body style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;background:#f3f4f6;margin:0;padding:24px;">
-    <div style="max-width: 760px; margin: 0 auto;background:#ffffff;border-radius:18px;padding:24px;">
-      <h1 style="font-size:28px;margin:0;color:#111827;">📡 OTT Radar</h1>
-      <p style="font-size:15px;color:#4b5563;margin:6px 0 0;">
-        OTT releases for <b>{escape_html(digest['region'])}</b> — Hindi, English + Popular
+  <body style="font-family: 'Inter', -apple-system, Helvetica, Arial, sans-serif; line-height: 1.5; color: #e8eaf0;background:#0d0f14;margin:0;padding:24px;">
+    <div style="max-width: 760px; margin: 0 auto;background:#15181f;border:1px solid #232734;border-radius:18px;padding:24px;">
+      <h1 style="font-size:28px;margin:0;font-weight:800;color:#ffa11a;">🔦 Spotlight</h1>
+      <p style="font-size:13px;color:#7d8598;margin:2px 0 0;font-weight:600;letter-spacing:0.02em;">Find what's worth watching</p>
+      <p style="font-size:15px;color:#9096a3;margin:14px 0 0;">
+        OTT releases for <b style="color:#e8eaf0;">{escape_html(digest['region'])}</b> — Hindi, English + Popular
       </p>
       {dashboard_html}
-      <h2 style="font-size:22px;margin:26px 0 0;color:#047857;">🟢 Out Now ({digest['out_now']['start']} → {digest['out_now']['end']})</h2>
+      <h2 style="font-size:22px;margin:26px 0 0;color:#2fcf8e;">🟢 Out Now ({digest['out_now']['start']} → {digest['out_now']['end']})</h2>
       {email_sections_html(digest['out_now']['sections'])}
-      <h2 style="font-size:22px;margin:26px 0 0;color:#1d4ed8;">🔵 Coming Up ({digest['coming_up']['start']} → {digest['coming_up']['end']})</h2>
+      <h2 style="font-size:22px;margin:26px 0 0;color:#ffd166;">🔵 Coming Up ({digest['coming_up']['start']} → {digest['coming_up']['end']})</h2>
       {email_sections_html(digest['coming_up']['sections'])}
     </div>
   </body>
@@ -965,35 +972,125 @@ def sections_to_json(sections: dict[str, list[ReleaseItem]]) -> dict[str, list[d
     }
 
 
-def write_dashboard_data(digest: dict[str, Any], output_dir: Path, history_limit: int = 12) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
+# ---------------------------------------------------------------------------
+# Postgres write path (the site's actual read path — see api/releases.ts)
+# ---------------------------------------------------------------------------
 
-    data = {
-        "generated_at": digest["generated_at"],
-        "region": digest["region"],
-        "out_now": {
-            "start": digest["out_now"]["start"],
-            "end": digest["out_now"]["end"],
-            "sections": sections_to_json(digest["out_now"]["sections"]),
-        },
-        "coming_up": {
-            "start": digest["coming_up"]["start"],
-            "end": digest["coming_up"]["end"],
-            "sections": sections_to_json(digest["coming_up"]["sections"]),
-        },
-    }
-    (output_dir / "data.json").write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    history_path = output_dir / "history.json"
-    history: list[dict[str, Any]] = []
-    if history_path.exists():
-        try:
-            history = json.loads(history_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            history = []
-    history = [entry for entry in history if entry.get("generated_at") != data["generated_at"]]
-    history.insert(0, data)
-    history_path.write_text(json.dumps(history[:history_limit], indent=2, ensure_ascii=False), encoding="utf-8")
+def write_release_items_to_db(digest: dict[str, Any], conn: Any) -> int:
+    """UPSERT this digest's ReleaseItems into release_items, pruning rows from
+    older runs of the same (region, window_kind) that no longer appear.
+    Returns the number of rows written."""
+    region = digest["region"]
+    generated_at = digest["generated_at"]
+    count = 0
+    with conn.cursor() as cur:
+        for window_kind in ("out_now", "coming_up"):
+            window = digest[window_kind]
+            for section, items in window["sections"].items():
+                for item in items:
+                    cur.execute(
+                        """
+                        INSERT INTO release_items
+                            (tmdb_id, media_type, title, language, release_date, rating,
+                             popularity, overview, tmdb_url, poster_url, providers,
+                             region, section, window_kind, window_start, window_end, generated_at, updated_at)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now())
+                        ON CONFLICT (tmdb_id, media_type, region, window_kind, section)
+                        DO UPDATE SET
+                            title = EXCLUDED.title, release_date = EXCLUDED.release_date,
+                            rating = EXCLUDED.rating, popularity = EXCLUDED.popularity,
+                            overview = EXCLUDED.overview, poster_url = EXCLUDED.poster_url,
+                            providers = EXCLUDED.providers, window_start = EXCLUDED.window_start,
+                            window_end = EXCLUDED.window_end, generated_at = EXCLUDED.generated_at,
+                            updated_at = now()
+                        """,
+                        (
+                            item.tmdb_id,
+                            item.media_type,
+                            item.title,
+                            item.language,
+                            item.release_date if item.release_date != "TBA" else None,
+                            item.rating,
+                            item.popularity,
+                            item.overview,
+                            item.tmdb_url,
+                            item.poster_url,
+                            list(item.providers),
+                            region,
+                            section,
+                            window_kind,
+                            window["start"],
+                            window["end"],
+                            generated_at,
+                        ),
+                    )
+                    count += 1
+        for window_kind in ("out_now", "coming_up"):
+            cur.execute(
+                "DELETE FROM release_items WHERE region=%s AND window_kind=%s AND generated_at < %s",
+                (region, window_kind, generated_at),
+            )
+    conn.commit()
+    return count
+
+
+def find_watchlist_matches(digest: dict[str, Any], conn: Any) -> list[dict[str, Any]]:
+    """Cross-reference this digest's out_now items against the owner's
+    watchlist/watchLater buckets. Returns matches worth alerting on."""
+    all_out_now_items = [item for items in digest["out_now"]["sections"].values() for item in items]
+    if not all_out_now_items:
+        return []
+    with conn.cursor() as cur:
+        cur.execute("SELECT tmdb_id, media_type FROM watchlist_items WHERE bucket IN ('watchlist','watchLater')")
+        watched_keys = {(row[0], row[1]) for row in cur.fetchall()}
+    matches = []
+    for item in all_out_now_items:
+        if (item.tmdb_id, item.media_type) in watched_keys:
+            matches.append(
+                {
+                    "tmdb_id": item.tmdb_id,
+                    "media_type": item.media_type,
+                    "title": item.title,
+                    "providers": list(item.providers),
+                }
+            )
+    return matches
+
+
+def send_watchlist_alerts(
+    matches: list[dict[str, Any]],
+    conn: Any,
+    telegram_sender: Any = None,
+    email_sender: Any = None,
+) -> None:
+    """For each match, skip channels already alerted (sent_notifications), else
+    send and log. telegram_sender/email_sender are callables taking `text`."""
+    with conn.cursor() as cur:
+        for match in matches:
+            for channel, sender in (("telegram", telegram_sender), ("email", email_sender)):
+                if not sender:
+                    continue
+                cur.execute(
+                    """
+                    SELECT 1 FROM sent_notifications
+                    WHERE tmdb_id=%s AND media_type=%s AND notification_kind='watchlist_drop' AND channel=%s
+                    """,
+                    (match["tmdb_id"], match["media_type"], channel),
+                )
+                if cur.fetchone():
+                    continue
+                providers_text = ", ".join(match["providers"]) or "a streaming platform"
+                text = f"🎯 From your watchlist: {match['title']} is now on {providers_text}"
+                sender(text)
+                cur.execute(
+                    """
+                    INSERT INTO sent_notifications (tmdb_id, media_type, notification_kind, channel)
+                    VALUES (%s,%s,'watchlist_drop',%s)
+                    """,
+                    (match["tmdb_id"], match["media_type"], channel),
+                )
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -1054,7 +1151,7 @@ def build_digest(now: datetime | None = None, diagnostics: bool = False) -> dict
 
 
 def build_digest_payload(now: datetime | None = None) -> dict[str, Any]:
-    """JSON-ready digest (same shape as docs/data.json)."""
+    """JSON-ready digest, same shape api/releases.ts serves from Postgres. Used by scripts/legacy_live_releases.py."""
     digest = build_digest(now)
     return {
         "generated_at": digest["generated_at"],
@@ -1073,11 +1170,15 @@ def build_digest_payload(now: datetime | None = None) -> dict[str, Any]:
 
 
 def main() -> int:
+    try:  # Windows consoles default to cp1252; force UTF-8 so emoji/arrows in print() don't crash.
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+
     dry_run = env_bool("DRY_RUN", False)
     telegram_enabled = env_bool("TELEGRAM_ENABLED", True) and not dry_run
     email_enabled = env_bool("EMAIL_ENABLED", False) and not dry_run
-
-    output_dir = Path(os.getenv("OUTPUT_DIR", "docs"))
 
     digest = build_digest(diagnostics=dry_run or env_bool("DIAGNOSTICS", False))
     out_sections = digest["out_now"]["sections"]
@@ -1088,8 +1189,19 @@ def main() -> int:
     message = format_message(digest)
     plain_message = format_plain_message(digest)
 
-    write_dashboard_data(digest, output_dir)
-    sent_channels: list[str] = [f"dashboard JSON ({output_dir}/data.json)"]
+    sent_channels: list[str] = []
+
+    db_conn = None
+    if os.getenv("DATABASE_URL"):
+        from lib_py.db import get_connection
+
+        db_conn = get_connection()
+        try:
+            n = write_release_items_to_db(digest, db_conn)
+            print(f"Wrote {n} rows to Postgres release_items")
+            sent_channels.append("Postgres")
+        except Exception as exc:  # pragma: no cover
+            print(f"Postgres write failed (non-fatal): {exc}", file=sys.stderr)
 
     if telegram_enabled:
         send_telegram_message(env_required("TELEGRAM_BOT_TOKEN"), env_required("TELEGRAM_CHAT_ID"), message)
@@ -1109,6 +1221,43 @@ def main() -> int:
             html_body=format_email_html(digest),
         )
         sent_channels.append("Email")
+
+    # Watchlist-drop alerts only make sense alongside the real digest send
+    # (not the nightly DB-only refresh, which runs with DRY_RUN=true and
+    # neither channel enabled).
+    if db_conn is not None and not dry_run and (telegram_enabled or email_enabled):
+        try:
+            matches = find_watchlist_matches(digest, db_conn)
+            if matches:
+                telegram_sender = (
+                    (lambda text: send_telegram_message(env_required("TELEGRAM_BOT_TOKEN"), env_required("TELEGRAM_CHAT_ID"), text))
+                    if telegram_enabled
+                    else None
+                )
+                email_sender = (
+                    (
+                        lambda text: send_email_message(
+                            smtp_host=env_required("SMTP_HOST"),
+                            smtp_port=int(os.getenv("SMTP_PORT", "587")),
+                            smtp_username=env_required("SMTP_USERNAME"),
+                            smtp_password=env_required("SMTP_PASSWORD"),
+                            email_from=os.getenv("EMAIL_FROM", os.getenv("SMTP_USERNAME", "")),
+                            email_to=env_required("EMAIL_TO"),
+                            subject="🎯 From your watchlist",
+                            text_body=text,
+                            html_body=f"<p>{escape_html(text)}</p>",
+                        )
+                    )
+                    if email_enabled
+                    else None
+                )
+                send_watchlist_alerts(matches, db_conn, telegram_sender, email_sender)
+                print(f"Sent {len(matches)} watchlist-drop alert(s)")
+        except Exception as exc:  # pragma: no cover
+            print(f"Watchlist-alert step failed (non-fatal): {exc}", file=sys.stderr)
+
+    if db_conn is not None:
+        db_conn.close()
 
     if dry_run:
         print("--- DRY RUN: Telegram/plain message preview ---")

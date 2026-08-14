@@ -7,12 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Dry run (skip Telegram/email, still update dashboard)"
+        description: "Dry run (skip Telegram/email, still refresh Postgres)"
         type: boolean
         default: false
-
-permissions:
-  contents: write
 
 concurrency:
   group: ott-radar
@@ -29,7 +26,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -37,6 +34,7 @@ jobs:
       - name: Run OTT Radar
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
           TELEGRAM_ENABLED: "true"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -52,19 +50,5 @@ jobs:
           LANGUAGES: hi,en
           POPULAR_MIN_POPULARITY: "25"
           RELEASE_TIMEZONE: Asia/Kolkata
-          OUTPUT_DIR: docs
-          DASHBOARD_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
         run: python releasebot.py
-
-      - name: Commit dashboard data
-        run: |
-          git config user.name "ott-radar-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add docs/data.json docs/history.json
-          if git diff --cached --quiet; then
-            echo "No dashboard changes to commit."
-          else
-            git commit -m "Update OTT Radar dashboard data [skip ci]"
-            git pull --rebase origin "${GITHUB_REF_NAME}"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
