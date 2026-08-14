@@ -92,6 +92,63 @@ export async function tmdbPopularTV(): Promise<TmdbMovieResult[]> {
   return (data.results ?? []).slice(0, 10).map((r: any) => mapResult(r, "tv"));
 }
 
+async function tmdbList(path: string, mediaType?: "movie" | "tv"): Promise<TmdbMovieResult[]> {
+  const joiner = path.includes("?") ? "&" : "?";
+  const res = await fetch(`${TMDB_BASE_URL}${path}${joiner}api_key=${requireApiKey()}`);
+  if (!res.ok) throw new Error(`TMDB request failed: ${res.status}`);
+  const data = await res.json();
+  return (data.results ?? [])
+    .filter((r: any) => mediaType || r.media_type === "movie" || r.media_type === "tv")
+    .slice(0, 20)
+    .map((r: any) => mapResult(r, mediaType));
+}
+
+/** TMDB's own "recommendations" — behaviour-derived, generally stronger than /similar. */
+export function tmdbRecommendations(mediaType: "movie" | "tv", id: number): Promise<TmdbMovieResult[]> {
+  return tmdbList(`/${mediaType}/${id}/recommendations`, mediaType);
+}
+
+/** Metadata-derived neighbours. Used to backfill when recommendations is thin. */
+export function tmdbSimilar(mediaType: "movie" | "tv", id: number): Promise<TmdbMovieResult[]> {
+  return tmdbList(`/${mediaType}/${id}/similar`, mediaType);
+}
+
+export interface CreditsResult {
+  cast: { id: number; name: string }[];
+  directors: { id: number; name: string }[];
+}
+
+export async function tmdbCredits(mediaType: "movie" | "tv", id: number): Promise<CreditsResult> {
+  const res = await fetch(`${TMDB_BASE_URL}/${mediaType}/${id}/credits?api_key=${requireApiKey()}`);
+  if (!res.ok) throw new Error(`TMDB credits failed: ${res.status}`);
+  const data = await res.json();
+  return {
+    cast: (data.cast ?? []).slice(0, 10).map((c: any) => ({ id: c.id, name: c.name })),
+    // TV credits expose creators as "Director" rarely; fall back to any
+    // directing-department crew so show pages aren't left empty.
+    directors: (data.crew ?? [])
+      .filter((c: any) => c.job === "Director" || c.department === "Directing")
+      .slice(0, 3)
+      .map((c: any) => ({ id: c.id, name: c.name })),
+  };
+}
+
+export interface DiscoverParams {
+  mediaType: "movie" | "tv";
+  genres?: string;
+  cast?: string;
+  crew?: string;
+}
+
+export function tmdbDiscover({ mediaType, genres, cast, crew }: DiscoverParams): Promise<TmdbMovieResult[]> {
+  const qs = new URLSearchParams({ sort_by: "popularity.desc", include_adult: "false" });
+  if (genres) qs.set("with_genres", genres);
+  // with_cast / with_crew are movie-only on TMDB; /discover/tv ignores them.
+  if (cast) qs.set(mediaType === "movie" ? "with_cast" : "with_people", cast);
+  if (crew) qs.set(mediaType === "movie" ? "with_crew" : "with_people", crew);
+  return tmdbList(`/discover/${mediaType}?${qs.toString()}`, mediaType);
+}
+
 export interface TitleDetailResult {
   id: number;
   mediaType: "movie" | "tv";
@@ -105,6 +162,8 @@ export interface TitleDetailResult {
   rating: number | null;
   runtime: number | null;
   genres: string[];
+  /** Needed by /discover, which filters on ids rather than names. */
+  genreIds: number[];
   providers: string[];
   tmdbUrl: string;
   originalLanguage: string;
@@ -136,6 +195,7 @@ export async function tmdbDetail(mediaType: "movie" | "tv", id: number, region =
     rating: r.vote_average || null,
     runtime: mediaType === "movie" ? r.runtime ?? null : r.episode_run_time?.[0] ?? null,
     genres: (r.genres ?? []).map((g: any) => g.name),
+    genreIds: (r.genres ?? []).map((g: any) => g.id).filter((id: any) => typeof id === "number"),
     providers,
     tmdbUrl: `https://www.themoviedb.org/${path}/${id}`,
     originalLanguage: r.original_language || "",

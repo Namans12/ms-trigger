@@ -1,5 +1,15 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { tmdbSearchMulti, tmdbTrending, tmdbPopularMovies, tmdbPopularTV, tmdbDetail } from "../../lib/tmdbProxy.js";
+import {
+  tmdbSearchMulti,
+  tmdbTrending,
+  tmdbPopularMovies,
+  tmdbPopularTV,
+  tmdbDetail,
+  tmdbRecommendations,
+  tmdbSimilar,
+  tmdbCredits,
+  tmdbDiscover,
+} from "../../lib/tmdbProxy.js";
 import { isRateLimited } from "../../lib/rateLimit.js";
 
 // Single catch-all for every /api/tmdb/* route (Vercel Hobby caps a deployment
@@ -37,7 +47,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       case "popular-tv":
         body = await tmdbPopularTV();
         break;
-      case "detail": {
+      case "detail":
+      case "recommendations":
+      case "similar":
+      case "credits": {
         const type = url.searchParams.get("type");
         const id = Number(url.searchParams.get("id"));
         if ((type !== "movie" && type !== "tv") || !Number.isFinite(id)) {
@@ -45,7 +58,26 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           res.end(JSON.stringify({ error: "type (movie|tv) and id are required" }));
           return;
         }
-        body = await tmdbDetail(type, id);
+        if (route === "detail") body = await tmdbDetail(type, id);
+        else if (route === "recommendations") body = await tmdbRecommendations(type, id);
+        else if (route === "similar") body = await tmdbSimilar(type, id);
+        else body = await tmdbCredits(type, id);
+        cacheControl = "public, s-maxage=3600, stale-while-revalidate=86400";
+        break;
+      }
+      case "discover": {
+        const type = url.searchParams.get("type");
+        if (type !== "movie" && type !== "tv") {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ error: "type (movie|tv) is required" }));
+          return;
+        }
+        body = await tmdbDiscover({
+          mediaType: type,
+          genres: url.searchParams.get("genres") ?? undefined,
+          cast: url.searchParams.get("cast") ?? undefined,
+          crew: url.searchParams.get("crew") ?? undefined,
+        });
         cacheControl = "public, s-maxage=3600, stale-while-revalidate=86400";
         break;
       }

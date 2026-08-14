@@ -4,10 +4,14 @@ import { ActionButton } from '@/components/watchlist/ActionButton';
 import { PosterCard } from '@/components/release/PosterCard';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { fromMovie } from '@/types/digest';
-import { TrendingUp, Film, Tv, Flame, Loader2, RefreshCw, Plus, Clock } from 'lucide-react';
+import { PosterRow } from '@/components/release/PosterRow';
+import { useSuggestions } from '@/hooks/useSuggestions';
+import { TrendingUp, Film, Tv, Flame, Loader2, RefreshCw, Plus, Clock, Sparkles } from 'lucide-react';
 
 export default function Browse() {
   const wl = useWatchlistContext();
+  const suggestionsQuery = useSuggestions();
+  const suggestions = suggestionsQuery.data ?? [];
 
   const trendingQuery = useQuery({ queryKey: ['tmdb', 'trending'], queryFn: getTrending, staleTime: 5 * 60_000 });
   const popularMoviesQuery = useQuery({ queryKey: ['tmdb', 'popular-movies'], queryFn: getPopularMovies, staleTime: 5 * 60_000 });
@@ -78,6 +82,19 @@ export default function Browse() {
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {suggestions.length > 0 && (
+        <div className="space-y-8">
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} className="text-accent shrink-0" />
+            <h3 className="font-display text-lg font-semibold text-foreground leading-none">For You</h3>
+            <span className="flex-1 h-px bg-border ml-1" />
+          </div>
+          {suggestions.map((row) => (
+            <PosterRow key={row.key} title={row.title} subtitle={row.subtitle} items={row.items} />
+          ))}
         </div>
       )}
 

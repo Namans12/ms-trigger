@@ -4,7 +4,9 @@ import { fetchTitleDetail, titleDetailToMovie } from '@/lib/tmdbDetail';
 import { useAuth } from '@/hooks/useAuth';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { ActionButton } from '@/components/watchlist/ActionButton';
-import { ArrowLeft, Star, Clock, ExternalLink, Plus, Loader2 } from 'lucide-react';
+import { PosterRow } from '@/components/release/PosterRow';
+import { getYouMayAlsoLike, type MediaType } from '@/lib/tmdb';
+import { ArrowLeft, Star, Clock, ExternalLink, Plus, Loader2, Sparkles } from 'lucide-react';
 
 export default function TitleDetail() {
   const { type, id } = useParams();
@@ -19,6 +21,14 @@ export default function TitleDetail() {
     enabled: Number.isFinite(tmdbId),
     staleTime: 60 * 60_000,
   });
+
+  const recommendationsQuery = useQuery({
+    queryKey: ['tmdb', 'you-may-also-like', mediaType, tmdbId],
+    queryFn: () => getYouMayAlsoLike(mediaType as MediaType, tmdbId),
+    enabled: Number.isFinite(tmdbId),
+    staleTime: 60 * 60_000,
+  });
+  const recommendations = recommendationsQuery.data ?? [];
 
   if (isLoading) {
     return (
@@ -133,6 +143,12 @@ export default function TitleDetail() {
           View on TMDB <ExternalLink size={11} />
         </a>
       </div>
+
+      {recommendations.length > 0 && (
+        <div className="px-1 pt-2">
+          <PosterRow title="You may also like" icon={<Sparkles size={16} />} items={recommendations} />
+        </div>
+      )}
     </div>
   );
 }
