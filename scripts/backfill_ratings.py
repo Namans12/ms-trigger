@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import time
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -205,6 +207,21 @@ def resolve_imdb_id(session: requests.Session, tmdb_key: str, media_type: str, t
     return _clean((payload.get("external_ids") or {}).get("imdb_id"))
 
 
+def _match_key(raw: str) -> str:
+    """Fold case, accents and punctuation so 'I&apos;m Not Afraid' still matches
+    "I'm Not Afraid", without letting a substring pass as an equal title."""
+    text = unicodedata.normalize("NFKD", raw or "")
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[^0-9a-z]+", " ", text.lower())
+    return " ".join(text.split())
+
+
+def _titles_match(requested: str, returned: Any) -> bool:
+    if not isinstance(returned, str) or not returned.strip():
+        return False
+    return _match_key(requested) == _match_key(returned)
+
+
 def fetch_omdb(
     session: requests.Session,
     api_key: str,
@@ -232,6 +249,21 @@ def fetch_omdb(
         payload = response.json()
     except (requests.RequestException, ValueError):
         return None
+
+    # OMDb's `t=` lookup is a fuzzy search, not an exact match: asking for
+    # "Cancel" returns "Cancel the Wedding, Queen Moves On". Attributing that
+    # show's score to the wrong title is worse than showing no score, so a
+    # title-based hit is only accepted when the returned name actually matches.
+    if not imdb_id and title and payload.get("Response") != "False":
+        if not _titles_match(title, payload.get("Title")):
+            return {
+                "imdb_id": None,
+                "imdb_rating": None,
+                "imdb_votes": None,
+                "rt_score": None,
+                "metacritic": None,
+                "not_found": True,
+            }
 
     parsed = parse_omdb_payload(payload)
     # A title-based hit still reveals the IMDb id; keep it so the next refresh
