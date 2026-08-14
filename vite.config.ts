@@ -9,6 +9,15 @@ export default defineConfig({
   server: {
     host: "::",
     port: 8080,
+    // Dev-only — `server.proxy` has no effect on `vite build`. Forwards /api
+    // to scripts/dev-api-server.mjs, which runs the real api/**.ts handlers
+    // against the real database (see `npm run dev:full`).
+    proxy: {
+      "/api": {
+        target: `http://localhost:${process.env.DEV_API_PORT || 3001}`,
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [
     tailwindcss(),

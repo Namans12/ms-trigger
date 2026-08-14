@@ -4,8 +4,8 @@
     {
       "name": "spotlight-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "5183"],
-      "port": 5183
+      "runtimeArgs": ["run", "dev:full"],
+      "port": 8080
     },
     {
       "name": "spotlight-preview",

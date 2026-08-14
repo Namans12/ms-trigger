@@ -21,7 +21,7 @@ export function Topbar() {
   const handleForceRefresh = async () => {
     setRefreshing(true);
     try {
-      const res = await fetch('/api/releases/refresh', { method: 'POST' });
+      const res = await fetch('/api/releases-refresh', { method: 'POST' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Request failed: ${res.status}`);
       toast.success(body.message || 'Refresh queued.');
