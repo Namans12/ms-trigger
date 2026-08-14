@@ -35,29 +35,6 @@ export function PosterCard({ item, linkTo, onAddToWatchlist, onAddToWatchLater, 
           </div>
         )}
 
-        {hasActions && (
-          <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center gap-2 p-3">
-            {onAddToWatchlist && (
-              <ActionButton
-                onClick={onAddToWatchlist}
-                icon={<Plus size={11} strokeWidth={2.5} />}
-                label="Watchlist"
-                className="w-full inline-flex items-center justify-center gap-1 py-1.5 rounded-lg bg-accent text-accent-foreground text-[11px] font-semibold leading-none hover:brightness-110"
-                successClassName="w-full inline-flex items-center justify-center gap-1 py-1.5 rounded-lg bg-watched/20 text-watched text-[11px] font-semibold leading-none"
-              />
-            )}
-            {onAddToWatchLater && (
-              <ActionButton
-                onClick={onAddToWatchLater}
-                icon={<Clock size={11} />}
-                label="Later"
-                className="w-full inline-flex items-center justify-center gap-1 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-[11px] font-medium leading-none hover:bg-card-hover"
-                successClassName="w-full inline-flex items-center justify-center gap-1 py-1.5 rounded-lg bg-watched/20 text-watched text-[11px] font-medium leading-none"
-              />
-            )}
-          </div>
-        )}
-
         {item.rating != null && item.rating > 0 && (
           <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-background/80 text-[10px] font-semibold text-gold inline-flex items-center gap-0.5 leading-none backdrop-blur-sm">
             <Star size={9} fill="currentColor" /> {item.rating.toFixed(1)}
@@ -73,6 +50,33 @@ export function PosterCard({ item, linkTo, onAddToWatchlist, onAddToWatchLater, 
         </span>
         {provider && <span className="text-[10px] text-accent font-medium truncate">{provider}</span>}
       </div>
+
+      {/* Always rendered, never hover-gated: as a hover overlay these were
+          completely unreachable on touch devices and undiscoverable on desktop,
+          which read as "there's no way to add anything". */}
+      {hasActions && (
+        <div className="flex items-center gap-1.5 mt-2">
+          {onAddToWatchlist && (
+            <ActionButton
+              onClick={onAddToWatchlist}
+              icon={<Plus size={13} strokeWidth={2.5} />}
+              label="Add"
+              className="flex-1 inline-flex items-center justify-center gap-1 py-2 rounded-lg bg-accent text-accent-foreground text-[11px] font-semibold leading-none hover:brightness-110"
+              successClassName="flex-1 inline-flex items-center justify-center gap-1 py-2 rounded-lg bg-watched/20 text-watched text-[11px] font-semibold leading-none"
+            />
+          )}
+          {onAddToWatchLater && (
+            <ActionButton
+              onClick={onAddToWatchLater}
+              icon={<Clock size={13} />}
+              label=""
+              ariaLabel="Add to Watch Later"
+              className="inline-flex items-center justify-center w-9 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-card-hover"
+              successClassName="inline-flex items-center justify-center w-9 py-2 rounded-lg bg-watched/20 text-watched"
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 

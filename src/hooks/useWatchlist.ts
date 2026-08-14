@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Movie, WatchlistItem, WatchlistState } from '@/types/movie';
 import type { WatchlistItemDTO, WatchlistStateDTO } from '../../shared/types/watchlist';
 import * as api from '@/lib/watchlistApi';
@@ -78,41 +79,70 @@ export function useWatchlist() {
     return queryClient.invalidateQueries({ queryKey: QUERY_KEY });
   }
 
+  // Every mutation used to fail silently — no onError anywhere — so a broken
+  // endpoint looked identical to a no-op click. Surface it instead.
+  function onError(action: string) {
+    return (err: unknown) =>
+      toast.error(`Could not ${action}`, {
+        description: err instanceof Error ? err.message : undefined,
+      });
+  }
+
+  /** Writes need the owner cookie; without it the request is doomed, so say so
+   * rather than firing it and swallowing the 401. */
+  function requireLogin(): boolean {
+    if (isAuthenticated) return true;
+    toast.error('Log in to use your list', { description: 'Open My List to enter your passphrase.' });
+    return false;
+  }
+
   const addMutation = useMutation({
     mutationFn: (vars: { movie: Movie; bucket: 'watchlist' | 'watchLater' | 'watched' | 'custom'; listId?: number }) =>
       api.addWatchlistItem(movieToAddBody(vars.movie, vars.bucket, vars.listId)),
     onSuccess: invalidate,
+    onError: onError('add that title'),
   });
 
   const moveMutation = useMutation({
     mutationFn: (vars: { dbId: number; bucket: 'watchlist' | 'watchLater' | 'watched' | 'custom'; listId?: number | null }) =>
       api.moveWatchlistItem(vars.dbId, vars.bucket, vars.listId),
     onSuccess: invalidate,
+    onError: onError('move that title'),
   });
 
   const removeMutation = useMutation({
     mutationFn: (dbId: number) => api.removeWatchlistItem(dbId),
     onSuccess: invalidate,
+    onError: onError('remove that title'),
   });
 
   const reorderMutation = useMutation({
     mutationFn: (vars: { bucket: 'watchlist' | 'watchLater'; orderedIds: number[] }) =>
       api.reorderBucket(vars.bucket, null, vars.orderedIds),
     onSuccess: invalidate,
+    onError: onError('save the new order'),
   });
 
   const createListMutation = useMutation({
     mutationFn: (name: string) => api.createCustomList(name),
     onSuccess: invalidate,
+    onError: onError('create that list'),
   });
 
   const deleteListMutation = useMutation({
     mutationFn: (listId: number) => api.deleteCustomList(listId),
     onSuccess: invalidate,
+    onError: onError('delete that list'),
   });
 
-  const addToWatchlist = (movie: Movie) => addMutation.mutate({ movie, bucket: 'watchlist' });
-  const addToWatchLater = (movie: Movie) => addMutation.mutate({ movie, bucket: 'watchLater' });
+  const addToWatchlist = (movie: Movie) => {
+    if (!requireLogin()) return;
+    addMutation.mutate({ movie, bucket: 'watchlist' });
+  };
+  const addToWatchLater = (movie: Movie) => {
+    if (!requireLogin()) return;
+    addMutation.mutate({ movie, bucket: 'watchLater' });
+  };
 
   const markWatched = (dbId: number) => moveMutation.mutate({ dbId, bucket: 'watched' });
 
@@ -134,10 +164,16 @@ export function useWatchlist() {
     reorderMutation.mutate({ bucket: 'watchLater', orderedIds: items.map((i) => i.dbId) });
   };
 
-  const createList = (name: string) => createListMutation.mutate(name);
+  const createList = (name: string) => {
+    if (!requireLogin()) return;
+    createListMutation.mutate(name);
+  };
   const deleteList = (listId: number) => deleteListMutation.mutate(listId);
 
-  const addToCustomList = (listId: number, movie: Movie) => addMutation.mutate({ movie, bucket: 'custom', listId });
+  const addToCustomList = (listId: number, movie: Movie) => {
+    if (!requireLogin()) return;
+    addMutation.mutate({ movie, bucket: 'custom', listId });
+  };
   const removeFromCustomList = (_listId: number, dbId: number) => removeMutation.mutate(dbId);
 
   return {

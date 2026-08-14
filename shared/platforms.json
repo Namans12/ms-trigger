@@ -1,0 +1,124 @@
+{
+  "_comment": "Single source of truth for streaming-platform naming. Consumed by both releasebot.py (write path, via platform_names.py) and shared/platforms.ts (read path, via api/**). TMDB returns several spellings for the same service, and news_sources.py contributes its own — without this they fragment the platform filter and card grouping into separate entries for the same service.",
+
+  "_tvNetworksComment": "Linear TV channels. A show premiering on one of these is neither a cinema release nor an OTT drop, so the calendar must not label it 'Theatrical'. Matched on whole comma/slash-separated parts, never as substrings — the old substring test matched 'max' inside 'Miramax' and 'aha' inside 'Mahaveer'.",
+  "tvNetworks": [
+    "HGTV", "TLC", "Discovery", "Discovery Channel", "HBO", "Bravo", "History",
+    "History Channel", "PBS", "ID", "Investigation Discovery", "MS Now", "AMC",
+    "Starz", "ABC", "NBC", "CBS", "Fox", "The CW", "CW", "Showtime", "FX", "FXX",
+    "Syfy", "USA Network", "TNT", "TBS", "Lifetime", "A&E", "National Geographic",
+    "Nat Geo", "Cartoon Network", "Adult Swim", "Comedy Central", "MTV", "VH1",
+    "E!", "OWN", "Oxygen", "Travel Channel", "Animal Planet", "Science Channel",
+    "Food Network", "Great American Family", "Hallmark", "Hallmark Channel",
+    "BET", "Telemundo", "Univision", "PBS Kids", "Nickelodeon", "Disney Channel",
+    "Colors", "Star Plus", "Sony TV", "Zee TV", "SET India", "Sony SAB"
+  ],
+
+  "stripSuffixes": [
+    " with Ads",
+    " With Ads",
+    " basic with Ads",
+    " Basic with Ads",
+    " Standard with Ads",
+    " Premium with Ads",
+    " Amazon Channel",
+    " Apple TV Channel",
+    " Roku Premium Channel",
+    " Channel"
+  ],
+
+  "aliases": {
+    "amazon prime video": "Amazon Prime",
+    "amazon prime": "Amazon Prime",
+    "prime video": "Amazon Prime",
+    "amazon video": "Amazon Prime",
+    "amazon instant video": "Amazon Prime",
+
+    "netflix": "Netflix",
+    "netflix standard": "Netflix",
+    "netflix kids": "Netflix",
+
+    "jiohotstar": "JioHotstar",
+    "jio hotstar": "JioHotstar",
+    "hotstar": "JioHotstar",
+    "disney+ hotstar": "JioHotstar",
+    "disney plus hotstar": "JioHotstar",
+    "disney+": "JioHotstar",
+    "disney plus": "JioHotstar",
+    "jiocinema": "JioHotstar",
+    "jio cinema": "JioHotstar",
+
+    "zee5": "ZEE5",
+    "zee 5": "ZEE5",
+
+    "sonyliv": "SonyLIV",
+    "sony liv": "SonyLIV",
+    "sony play": "SonyLIV",
+
+    "apple tv+": "Apple TV+",
+    "apple tv plus": "Apple TV+",
+    "apple tv": "Apple TV+",
+    "itunes": "Apple TV+",
+
+    "lionsgate play": "Lionsgate Play",
+    "lionsgateplay": "Lionsgate Play",
+
+    "mx player": "Amazon MX Player",
+    "amazon mx player": "Amazon MX Player",
+    "amazon minitv": "Amazon MX Player",
+    "minitv": "Amazon MX Player",
+
+    "sun nxt": "Sun NXT",
+    "sunnxt": "Sun NXT",
+
+    "aha": "aha",
+    "hoichoi": "Hoichoi",
+    "chaupal": "Chaupal",
+    "manoramamax": "ManoramaMAX",
+    "planet marathi": "Planet Marathi",
+    "eros now": "Eros Now",
+    "erosnow": "Eros Now",
+
+    "crunchyroll": "Crunchyroll",
+    "netflix basic": "Netflix",
+
+    "discovery+": "Discovery+",
+    "discovery plus": "Discovery+",
+
+    "hbo max": "HBO Max",
+    "max": "HBO Max",
+
+    "youtube premium": "YouTube",
+    "youtube free": "YouTube",
+    "youtube": "YouTube",
+
+    "bookmyshow stream": "BookMyShow Stream",
+    "airtel xstream": "Airtel Xstream",
+    "tata play": "Tata Play",
+    "tata play binge": "Tata Play",
+
+    "paramount+": "Paramount+",
+    "paramount plus": "Paramount+",
+
+    "peacock": "Peacock",
+    "peacock premium": "Peacock",
+    "hulu": "Hulu",
+    "tubi": "Tubi",
+    "viu": "Viu",
+    "rakuten viki": "Viki",
+    "viki": "Viki",
+    "stan": "Stan",
+    "britbox": "BritBox",
+    "mubi": "MUBI",
+    "docubay": "DocuBay",
+    "shemaroome": "ShemarooMe",
+    "epicon": "Epicon",
+    "stage": "STAGE",
+    "ullu": "ULLU",
+    "atrangii": "Atrangii",
+    "distro tv": "DistroTV",
+    "plex": "Plex",
+    "the roku channel": "Roku Channel",
+    "roku channel": "Roku Channel"
+  }
+}

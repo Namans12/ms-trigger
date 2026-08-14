@@ -16,24 +16,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lib_py.db import get_connection
+from platform_names import classify_platform, media_type_from_entry_type
 
 CSV_PATH = Path(__file__).resolve().parent.parent / "release_calendar_may_dec_2026.csv"
-
-# The CSV's platform_or_distributor column mixes streaming platforms and
-# theatrical distributors/production studios. Known streamers are a short,
-# enumerable list; anything else is treated as theatrical.
-KNOWN_STREAMERS = {
-    "netflix", "amazon prime video", "prime video", "disney+", "disney+ hotstar",
-    "jiocinema", "jiohotstar", "hotstar", "zee5", "sonyliv", "hulu", "apple tv+",
-    "paramount+", "hbo max", "max", "peacock", "sun nxt", "aha", "hoichoi",
-    "mx player", "crunchyroll", "lionsgate play", "discovery+", "youtube premium",
-    "tubi", "stan", "binge", "viu", "rakuten viki",
-}
-
-
-def is_theatrical(platform_or_distributor: str | None) -> bool:
-    platform = (platform_or_distributor or "").lower()
-    return not any(streamer in platform for streamer in KNOWN_STREAMERS)
 
 
 def main() -> None:
@@ -46,8 +31,9 @@ def main() -> None:
                 """
                 INSERT INTO calendar_entries
                     (release_date, title, language, entry_type, is_theatrical,
-                     platform_or_distributor, details, source, source_url, origin)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'csv_seed')
+                     platform_or_distributor, details, source, source_url, origin,
+                     media_type)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'csv_seed',%s)
                 ON CONFLICT (release_date, title, entry_type) DO NOTHING
                 """,
                 (
@@ -55,11 +41,12 @@ def main() -> None:
                     row["title"],
                     row.get("language") or None,
                     row["type"],
-                    is_theatrical(row.get("platform_or_distributor")),
+                    classify_platform(row["type"], row.get("platform_or_distributor")) == "theatrical",
                     row.get("platform_or_distributor") or None,
                     row.get("details") or None,
                     row.get("source") or None,
                     row.get("source_url") or None,
+                    media_type_from_entry_type(row["type"]),
                 ),
             )
             inserted += cur.rowcount

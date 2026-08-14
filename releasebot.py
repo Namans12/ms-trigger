@@ -31,6 +31,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 import news_sources
+from platform_names import normalize_platform, normalize_platforms
 
 
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
@@ -121,20 +122,38 @@ class TmdbClient:
 # Networks that are themselves streaming platforms. Used as a fallback when a
 # brand-new show has no watch-provider attribution on TMDB yet (provider data
 # usually appears only days after a title goes live on the service).
+# Membership is tested on the *normalized* name, so every spelling variant
+# ("Prime Video", "Amazon Prime Video with Ads") collapses to one entry here.
 STREAMING_NETWORKS = {
-    "Netflix", "Amazon Prime Video", "Prime Video", "amazon prime video",
-    "Disney+", "Disney+ Hotstar", "JioHotstar", "Hotstar", "JioCinema",
-    "Apple TV+", "HBO Max", "Max", "Paramount+", "Peacock", "Hulu",
-    "ZEE5", "SonyLIV", "Sun NXT", "aha", "hoichoi", "MX Player",
-    "Crunchyroll", "Rakuten Viki", "Lionsgate Play", "discovery+",
-    "YouTube Premium", "Tubi", "Stan", "BINGE", "Viu",
+    "Netflix", "Amazon Prime", "JioHotstar", "Apple TV+", "HBO Max",
+    "Paramount+", "Peacock", "Hulu", "ZEE5", "SonyLIV", "Sun NXT", "aha",
+    "Hoichoi", "Amazon MX Player", "Crunchyroll", "Viki", "Lionsgate Play",
+    "Discovery+", "YouTube", "Tubi", "Stan", "Viu", "MUBI", "BookMyShow Stream",
+    "Chaupal", "ManoramaMAX", "Planet Marathi", "Eros Now", "STAGE", "ULLU",
 }
+
+# TMDB splits availability across buckets. "flatrate" (included with a
+# subscription), "ads" (free with adverts) and "free" all mean "you can watch it
+# on this service right now", so all three count as a platform. "rent"/"buy" are
+# deliberately excluded — paying per title is not the same as the title having
+# landed on a service, and conflating them is what makes a radar untrustworthy.
+AVAILABILITY_BUCKETS = ("flatrate", "ads", "free")
 
 
 def flatrate_providers(details: dict[str, Any], region: str) -> tuple[str, ...]:
+    """Canonical platform names a title is watchable on in `region`.
+
+    Reads every availability bucket, not just `flatrate` — an ad-tier-only or
+    free-tier-only title used to come back empty and render as "Platform TBA".
+    """
     region_payload = details.get("watch/providers", {}).get("results", {}).get(region, {})
-    providers = region_payload.get("flatrate", []) or []
-    return tuple(p.get("provider_name", "") for p in providers if p.get("provider_name"))
+    names: list[str] = []
+    for bucket in AVAILABILITY_BUCKETS:
+        for entry in region_payload.get(bucket, []) or []:
+            name = entry.get("provider_name")
+            if name:
+                names.append(name)
+    return normalize_platforms(names)
 
 
 def digital_release_date(details: dict[str, Any], region: str) -> str | None:
@@ -353,7 +372,7 @@ def fetch_ott_shows(
     for raw, details in zip(raws, details_list):
         providers = flatrate_providers(details, tmdb.region)
         if not providers:
-            networks = tuple(n.get("name", "") for n in details.get("networks", []))
+            networks = normalize_platforms(n.get("name", "") for n in details.get("networks", []))
             providers = tuple(n for n in networks if n in STREAMING_NETWORKS)
         if not providers:
             continue  # linear-TV-only / not a streaming release
@@ -478,10 +497,13 @@ def _providers_for(tmdb: TmdbClient, media_type: str, item_id: int, fallback: st
         details = {}
     providers = flatrate_providers(details, tmdb.region)
     if not providers:
-        networks = tuple(n.get("name", "") for n in details.get("networks", []))
+        networks = normalize_platforms(n.get("name", "") for n in details.get("networks", []))
         providers = tuple(n for n in networks if n in STREAMING_NETWORKS)
     if not providers and fallback:
-        providers = (fallback,)
+        # Headline-scraped hint from news_sources — normalize it too, otherwise
+        # its curated spelling diverges from the TMDB-derived names.
+        hint = normalize_platform(fallback)
+        providers = (hint,) if hint else ()
     return providers
 
 

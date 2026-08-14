@@ -1,4 +1,25 @@
+import { normalizePlatforms } from "../shared/platforms.js";
+
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
+
+// TMDB splits availability across buckets. "flatrate" (included with a
+// subscription), "ads" (free with adverts) and "free" all mean "you can watch
+// it on this service right now", so all three count as a platform. "rent" and
+// "buy" are deliberately excluded — paying per title is not the same as the
+// title having landed on a service, and treating them as one another is what
+// makes a radar untrustworthy.
+const AVAILABILITY_BUCKETS = ["flatrate", "ads", "free"] as const;
+
+export function providersFromWatchPayload(watchProviders: any, region: string): string[] {
+  const regionPayload = watchProviders?.results?.[region] ?? {};
+  const names: string[] = [];
+  for (const bucket of AVAILABILITY_BUCKETS) {
+    for (const entry of regionPayload[bucket] ?? []) {
+      if (entry?.provider_name) names.push(entry.provider_name);
+    }
+  }
+  return normalizePlatforms(names);
+}
 
 export interface TmdbMovieResult {
   id: number;
@@ -100,8 +121,7 @@ export async function tmdbDetail(mediaType: "movie" | "tv", id: number, region =
   if (!res.ok) throw new Error(`TMDB detail failed: ${res.status}`);
   const r = await res.json();
 
-  const providersPayload = r["watch/providers"]?.results?.[region]?.flatrate ?? [];
-  const providers = providersPayload.map((p: any) => p.provider_name).filter(Boolean);
+  const providers = providersFromWatchPayload(r["watch/providers"], region);
 
   return {
     id: r.id,
