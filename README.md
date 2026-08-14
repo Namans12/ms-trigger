@@ -143,6 +143,26 @@ And one repo **variable** (not secret) under the same page's "Variables" tab:
 | `TELEGRAM_ENABLED` | `true` | Toggle Telegram delivery |
 | `EMAIL_ENABLED` | `false` | Toggle email delivery |
 
+## News augmentation (why the digest is fuller than TMDB alone)
+
+TMDB's India OTT discover feeds are incomplete and often lag the real streaming
+calendar, so the digest used to miss titles that every "OTT releases this week"
+article lists. `news_sources.py` closes that gap:
+
+1. It harvests candidate titles from editorially-curated Indian OTT round-ups —
+   **evergreen** via Google News India RSS (auto-updates weekly, no per-week URL
+   maintenance), plus any extra article URLs you set in `NEWS_URLS`.
+2. Every candidate is then **validated and enriched against TMDB** (real title,
+   language, rating, poster, watch providers, links) in `releasebot.enrich_news_candidates`.
+   Anything TMDB can't confirm as a near-term movie/show is dropped — that's the
+   quality gate that filters out the noise scraping inevitably picks up.
+3. Confirmed titles are merged into the Hindi / English / Popular sections
+   (`merge_sections`, keeping the richer copy on collision) and bucketed into
+   Out Now vs Coming Up by their TMDB date, then written to Postgres like any
+   other release.
+
+Set `NEWS_ENABLED=false` to fall back to TMDB-only behavior.
+
 ## Local development
 
 ```bash

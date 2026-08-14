@@ -495,6 +495,7 @@ def _item_from_search(result: dict[str, Any], release_date: str, providers: tupl
         or "Untitled"
     )
     return ReleaseItem(
+        tmdb_id=result["id"],
         title=title,
         media_type=media_type,
         language=result.get("original_language") or "unknown",

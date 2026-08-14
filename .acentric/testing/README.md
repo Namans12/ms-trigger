@@ -75,7 +75,7 @@ npm run dev   # served at whatever port Vite picks (see .claude/launch.json)
 ```
 
 Check:
-- Home, Browse, Search, Calendar (stub), My List, and a 404 path all render without console errors
+- Home, Browse, Search, Calendar, Title Detail, My List, and a 404 path all render without console errors
 - Home shows a graceful "could not load releases yet" state under plain `npm run dev` — `/api/*` functions only run under `vercel dev` or on Vercel itself, not the Vite dev server
 - Filters on Home (section/platform/type/search) round-trip through URL search params and survive a reload
 - The service worker registers and TMDB poster images still load
