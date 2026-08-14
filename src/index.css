@@ -3,7 +3,7 @@
 @import "tw-animate-css";
 
 :root {
-  --background: #292728;
+  --background: #000000;
   --foreground: #e8e1d8;
 
   --card: #322f30;
@@ -151,7 +151,7 @@
   .hide-scrollbar::-webkit-scrollbar { display: none; }
 
   .glass {
-    background: rgb(41 39 40 / 0.82);
+    background: rgb(0 0 0 / 0.82);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
   }
