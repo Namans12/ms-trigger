@@ -2,6 +2,7 @@ import { Movie } from '@/types/movie';
 import { PosterCard } from '@/components/release/PosterCard';
 import { fromMovie } from '@/types/digest';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
+import { useRatings } from '@/hooks/useRatings';
 
 interface PosterRowProps {
   title: string;
@@ -14,6 +15,7 @@ interface PosterRowProps {
  * "Trending", "Because you added…" and "You may also like" strip. */
 export function PosterRow({ title, items, icon, subtitle }: PosterRowProps) {
   const wl = useWatchlistContext();
+  const ratingFor = useRatings(items);
   if (items.length === 0) return null;
 
   return (
@@ -29,6 +31,7 @@ export function PosterRow({ title, items, icon, subtitle }: PosterRowProps) {
             key={`${movie.mediaType}-${movie.id}`}
             item={fromMovie(movie)}
             linkTo={`/title/${movie.mediaType}/${movie.id}`}
+            rating={ratingFor(movie.mediaType, movie.id)}
             className="flex-shrink-0 w-[130px] sm:w-[150px]"
             onAddToWatchlist={() => wl.addToWatchlist(movie)}
             onAddToWatchLater={() => wl.addToWatchLater(movie)}

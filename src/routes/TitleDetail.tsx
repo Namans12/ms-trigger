@@ -6,6 +6,9 @@ import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { ActionButton } from '@/components/watchlist/ActionButton';
 import { PosterRow } from '@/components/release/PosterRow';
 import { getYouMayAlsoLike, type MediaType } from '@/lib/tmdb';
+import { RatingBadges } from '@/components/release/RatingBadges';
+import { useRating } from '@/hooks/useRatings';
+import { hasAnyScore } from '@/lib/ratings';
 import { ArrowLeft, Star, Clock, ExternalLink, Plus, Loader2, Sparkles } from 'lucide-react';
 
 export default function TitleDetail() {
@@ -29,6 +32,7 @@ export default function TitleDetail() {
     staleTime: 60 * 60_000,
   });
   const recommendations = recommendationsQuery.data ?? [];
+  const ratingQuery = useRating(mediaType, tmdbId);
 
   if (isLoading) {
     return (
@@ -78,10 +82,16 @@ export default function TitleDetail() {
           <div className="flex items-center gap-2.5 mt-1.5 text-xs text-muted-foreground flex-wrap">
             {year && <span>{year}</span>}
             <span className="uppercase font-semibold text-accent">{data.mediaType === 'tv' ? 'TV' : 'Film'}</span>
-            {data.rating != null && (
-              <span className="inline-flex items-center gap-1 text-gold">
-                <Star size={11} fill="currentColor" /> {data.rating.toFixed(1)}
-              </span>
+            {/* IMDb/RT when known; the TMDB score is the fallback so the line
+                is never empty while the ratings cache is still filling. */}
+            {hasAnyScore(ratingQuery.data) ? (
+              <RatingBadges rating={ratingQuery.data} size="md" />
+            ) : (
+              data.rating != null && (
+                <span className="inline-flex items-center gap-1 text-gold">
+                  <Star size={11} fill="currentColor" /> {data.rating.toFixed(1)}
+                </span>
+              )
             )}
             {data.runtime && (
               <span className="inline-flex items-center gap-1">

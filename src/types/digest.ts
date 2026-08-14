@@ -37,6 +37,23 @@ export function fromDigestDTO(dto: ReleaseItemDTO): ReleaseItem {
   };
 }
 
+/** Reverse of `fromMovie`, for adding a digest/calendar card to the watchlist.
+ * The watchlist API stores poster paths, not URLs, so the TMDB image prefix is
+ * stripped back off. */
+export function toMovie(item: ReleaseItem): Movie {
+  return {
+    id: item.id,
+    title: item.title,
+    mediaType: item.mediaType,
+    releaseDate: item.releaseDate,
+    posterPath: item.posterUrl ? item.posterUrl.replace(/^https?:\/\/image\.tmdb\.org\/t\/p\/\w+/, "") : null,
+    backdropPath: null,
+    overview: item.overview ?? "",
+    voteAverage: item.rating ?? 0,
+    originalLanguage: "",
+  };
+}
+
 export function fromMovie(movie: Movie): ReleaseItem {
   return {
     id: movie.id,

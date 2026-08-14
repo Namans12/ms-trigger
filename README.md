@@ -28,7 +28,7 @@ Plus, on the site itself: Browse (trending/popular rows), Search (full TMDB mult
 |---|---|
 | `releasebot.py` | The TMDB fetch pipeline. Runs only as a GitHub Action (Wed/Fri + nightly). Writes to Postgres. |
 | Postgres (Neon) | Source of truth for releases, the calendar, and the private watchlist. |
-| `api/*.ts` | Vercel serverless functions — DB reads, TMDB proxy (search/trending), auth, watchlist CRUD. |
+| `api/*.ts` | Vercel serverless functions — DB reads, TMDB proxy (search/trending), auth, watchlist CRUD, IMDb/RT ratings cache. |
 | `src/` | The React + Vite + Tailwind SPA (this is what's served at your domain). |
 | Telegram + Email | Delivery channels, sent by the same GitHub Action that refreshes Postgres. |
 
@@ -40,6 +40,7 @@ The public site (Home, Browse, Search, Calendar) needs no login. The private **M
 - Neon Postgres: free-tier serverless Postgres
 - Vercel: hosts the React app + API functions
 - TMDB API: movie, show, release, rating, poster, and provider data
+- OMDb API (optional): IMDb and Rotten Tomatoes scores, cached in Postgres (see [Ratings](#ratings-imdb--rotten-tomatoes))
 - Telegram Bot API: instant push notification
 - SMTP email: searchable archive in your inbox
 
@@ -87,7 +88,7 @@ Using your own Gmail (or any account) as the sender needs an **app password**, n
 
 1. Create a free project at https://neon.tech (pick a region close to your Vercel deployment region).
 2. Copy the pooled connection string.
-3. Run the migration once: `psql "$DATABASE_URL" -f migrations/0001_init.sql` (or via a Python one-liner with `psycopg` if you don't have `psql` installed).
+3. Run the migrations once, in order: `psql "$DATABASE_URL" -f migrations/0001_init.sql` then `psql "$DATABASE_URL" -f migrations/0002_title_ratings.sql` (or via a Python one-liner with `psycopg` if you don't have `psql` installed).
 4. Optionally seed the editorial calendar: `python scripts/seed_calendar_csv.py`.
 
 ### 6. Add secrets to GitHub
@@ -99,6 +100,7 @@ Using your own Gmail (or any account) as the sender needs an **app password**, n
 | Secret name | Value |
 |---|---|
 | `TMDB_API_KEY` | TMDB v3 API key (step 3) |
+| `OMDB_API_KEY` | *Optional.* Free key from https://www.omdbapi.com/apikey.aspx — unlocks IMDb/RT scores. Leave unset and the site simply shows no ratings. |
 | `DATABASE_URL` | Neon connection string (step 5) |
 | `TELEGRAM_BOT_TOKEN` | Bot token from BotFather (step 1) |
 | `TELEGRAM_CHAT_ID` | Your chat ID (step 2) |
@@ -119,7 +121,7 @@ And one repo **variable** (not secret) under the same page's "Variables" tab:
 
 1. Go to https://vercel.com → sign in with GitHub → **Add New… → Project** → import this repo.
 2. Framework preset: **Other** (not "Python" — this project is a Vite SPA + TS/Python functions, not a Python web framework).
-3. Under **Environment Variables**, add: `TMDB_API_KEY`, `DATABASE_URL`, `AUTH_SECRET`, `OWNER_PASSPHRASE`.
+3. Under **Environment Variables**, add: `TMDB_API_KEY`, `DATABASE_URL`, `AUTH_SECRET`, `OWNER_PASSPHRASE`, and optionally `OMDB_API_KEY`.
 4. Deploy. Every push to `main` auto-redeploys.
 
 ### 8. Done
@@ -142,6 +144,34 @@ And one repo **variable** (not secret) under the same page's "Variables" tab:
 | `DATABASE_URL` | — | Neon Postgres connection string |
 | `TELEGRAM_ENABLED` | `true` | Toggle Telegram delivery |
 | `EMAIL_ENABLED` | `false` | Toggle email delivery |
+| `OMDB_API_KEY` | — | OMDb key for IMDb/RT scores. Unset = no ratings anywhere, silently |
+| `RATINGS_MAX_CALLS` | `400` | OMDb requests one `scripts/backfill_ratings.py` run may spend |
+
+## Ratings (IMDb / Rotten Tomatoes)
+
+TMDB's own `vote_average` is the score shown on cards by default. IMDb and
+Rotten Tomatoes numbers come from [OMDb](https://www.omdbapi.com/), whose free
+tier allows **1,000 requests/day for the entire deployment** — far too few to
+call while rendering a poster grid. So nothing does:
+
+- `migrations/0002_title_ratings.sql` adds `title_ratings`, a cache keyed by
+  `(tmdb_id, media_type)`. A title OMDb has no entry for is stored with
+  `not_found = true`, so it isn't re-requested on every page view.
+- `scripts/backfill_ratings.py` is the bulk filler. It walks `release_items` and
+  `watchlist_items`, skips anything fetched in the last 7 days, and stops at
+  `--max-calls` (default 400). Run it manually or add it to the nightly workflow:
+
+      python scripts/backfill_ratings.py                     # fill up to 400
+      python scripts/backfill_ratings.py --dry-run           # list, call nothing
+
+- `GET /api/ratings?ids=movie:603,tv:1399` is a **cache-only** batch read — it
+  never calls OMDb, so grids cost one Postgres query.
+- `GET /api/ratings?type=movie&id=603` may spend exactly one OMDb call, and only
+  when that title has never been fetched. Stale rows are served as-is; refreshing
+  them is the backfill's job, never a request's.
+
+With `OMDB_API_KEY` unset every path returns "no ratings" and the UI shows
+nothing — no errors, no 500s, no degraded cards.
 
 ## News augmentation (why the digest is fuller than TMDB alone)
 

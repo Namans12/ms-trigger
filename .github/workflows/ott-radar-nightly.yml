@@ -36,3 +36,14 @@ jobs:
           POPULAR_MIN_POPULARITY: "25"
           RELEASE_TIMEZONE: Asia/Kolkata
         run: python releasebot.py
+
+      # Fills the title_ratings cache so poster grids can read IMDb/RT without
+      # ever calling OMDb themselves. Capped per run to stay inside OMDb's free
+      # 1,000/day, and a no-op when OMDB_API_KEY is absent.
+      - name: Backfill IMDb / Rotten Tomatoes ratings
+        env:
+          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RATINGS_MAX_CALLS: "400"
+        run: python scripts/backfill_ratings.py

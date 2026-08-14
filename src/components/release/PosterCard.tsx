@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import type { ReleaseItem } from '@/types/digest';
 import { ActionButton } from '@/components/watchlist/ActionButton';
+import { RatingBadges } from '@/components/release/RatingBadges';
+import { hasAnyScore, type TitleRating } from '@/lib/ratings';
 import { Film, Tv, Star, Plus, Clock } from 'lucide-react';
 
 interface PosterCardProps {
@@ -9,12 +11,14 @@ interface PosterCardProps {
   onAddToWatchlist?: () => void;
   onAddToWatchLater?: () => void;
   className?: string;
+  /** IMDb/RT scores when the cache has them; falls back to the TMDB score. */
+  rating?: TitleRating | null;
 }
 
 /** Poster-forward vertical tile for grid contexts (Home, Calendar, Browse,
  * Search) — as opposed to ReleaseCard's horizontal row, used in list contexts
  * (My List) where a drag handle and dense rows make more sense. */
-export function PosterCard({ item, linkTo, onAddToWatchlist, onAddToWatchLater, className = '' }: PosterCardProps) {
+export function PosterCard({ item, linkTo, onAddToWatchlist, onAddToWatchLater, className = '', rating }: PosterCardProps) {
   const year = item.releaseDate?.slice(0, 4);
   const hasActions = onAddToWatchlist || onAddToWatchLater;
   const provider = item.providers?.[0];
@@ -35,10 +39,17 @@ export function PosterCard({ item, linkTo, onAddToWatchlist, onAddToWatchLater, 
           </div>
         )}
 
-        {item.rating != null && item.rating > 0 && (
-          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-background/80 text-[10px] font-semibold text-gold inline-flex items-center gap-0.5 leading-none backdrop-blur-sm">
-            <Star size={9} fill="currentColor" /> {item.rating.toFixed(1)}
+        {hasAnyScore(rating) ? (
+          <div className="absolute top-2 right-2">
+            <RatingBadges rating={rating} className="rounded-md bg-background/80 px-1 py-0.5 backdrop-blur-sm" />
           </div>
+        ) : (
+          item.rating != null &&
+          item.rating > 0 && (
+            <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-background/80 text-[10px] font-semibold text-gold inline-flex items-center gap-0.5 leading-none backdrop-blur-sm">
+              <Star size={9} fill="currentColor" /> {item.rating.toFixed(1)}
+            </div>
+          )
         )}
       </div>
 
