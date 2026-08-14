@@ -1,14 +1,38 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="beam" x1="256" y1="60" x2="256" y2="440" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#d9bd8f" />
+    <linearGradient id="sl-housing" x1="14" y1="14" x2="34" y2="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6b635b" />
+      <stop offset="100%" stop-color="#28241f" />
+    </linearGradient>
+    <linearGradient id="sl-door" x1="32" y1="4" x2="43" y2="36" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#514a41" />
+      <stop offset="100%" stop-color="#1c1a19" />
+    </linearGradient>
+    <radialGradient id="sl-lens" cx="34" cy="20" r="6.4" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fff3d6" />
+      <stop offset="55%" stop-color="#e9c98e" />
       <stop offset="100%" stop-color="#b99079" />
+    </radialGradient>
+    <linearGradient id="sl-beam" x1="33.5" y1="21.9" x2="55" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f3dcae" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#b99079" stop-opacity="0" />
     </linearGradient>
   </defs>
   <rect width="512" height="512" fill="#292728" />
-  <g transform="translate(256 256) scale(11) translate(-16 -16)">
-    <circle cx="16" cy="6.2" r="2.4" fill="url(#beam)" />
-    <path d="M11.4 10.2 L20.6 10.2 L25.4 25.6 C25.9 27.2 24.7 28.8 23 28.8 L9 28.8 C7.3 28.8 6.1 27.2 6.6 25.6 Z" fill="url(#beam)" opacity="0.92" />
-    <ellipse cx="16" cy="24.6" rx="5.6" ry="1.5" fill="#292728" opacity="0.35" />
+  <g transform="translate(256 256) scale(6.4) translate(-32 -32)">
+    <polygon points="33.5,21.9 50.3,52.8 59.7,35.2" fill="url(#sl-beam)" />
+    <g stroke="#1c1a19" stroke-width="2.4" stroke-linecap="round" fill="none">
+      <line x1="18" y1="2" x2="18" y2="10.5" />
+      <path d="M18 10.5 C18 13.5 18.4 15 19.8 16.5" />
+    </g>
+    <circle cx="18" cy="10.5" r="1.6" fill="#1c1a19" />
+    <g transform="rotate(28 30 20)">
+      <ellipse cx="14" cy="20" rx="6.2" ry="6.6" fill="url(#sl-housing)" stroke="#8a8078" stroke-width="0.5" stroke-opacity="0.5" />
+      <rect x="14" y="13.6" width="20" height="12.8" rx="6" fill="url(#sl-housing)" stroke="#8a8078" stroke-width="0.5" stroke-opacity="0.5" />
+      <polygon points="32,13 43,4 39.5,15.5" fill="url(#sl-door)" />
+      <polygon points="32,27 43,36 39.5,24.5" fill="url(#sl-door)" />
+      <circle cx="34" cy="20" r="7.2" fill="#1c1a19" />
+      <circle cx="34" cy="20" r="5.8" fill="url(#sl-lens)" />
+    </g>
   </g>
 </svg>

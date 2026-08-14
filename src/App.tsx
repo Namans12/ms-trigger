@@ -7,6 +7,7 @@ import { queryClient } from '@/lib/queryClient';
 import { WatchlistProvider } from '@/contexts/WatchlistContext';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/auth/RequireAuth';
+import { IntroGate } from '@/components/intro/IntroGate';
 
 const Home = lazy(() => import('./routes/Home'));
 const Calendar = lazy(() => import('./routes/Calendar'));
@@ -28,36 +29,38 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <WatchlistProvider>
       <TooltipProvider>
-        <Toaster />
-        <BrowserRouter>
-          <Suspense fallback={<div className="min-h-screen bg-background" />}>
-            <Routes>
-              <Route element={<AppShell />}>
-                <Route path="/" element={<Home />} />
-                <Route path="/calendar" element={<Calendar />} />
-                <Route path="/search" element={<Search />} />
-                <Route path="/browse" element={<Browse />} />
-                <Route path="/title/:type/:id" element={<TitleDetail />} />
-                <Route path="/login" element={<PassphraseGate />} />
-                <Route
-                  path="/list"
-                  element={
-                    <RequireAuth>
-                      <ListLayout />
-                    </RequireAuth>
-                  }
-                >
-                  <Route index element={<Navigate to="watchlist" replace />} />
-                  <Route path="watchlist" element={<Watchlist />} />
-                  <Route path="later" element={<WatchLater />} />
-                  <Route path="watched" element={<Watched />} />
-                  <Route path="lists" element={<CustomLists />} />
+        <IntroGate>
+          <Toaster />
+          <BrowserRouter>
+            <Suspense fallback={<div className="min-h-screen bg-background" />}>
+              <Routes>
+                <Route element={<AppShell />}>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/calendar" element={<Calendar />} />
+                  <Route path="/search" element={<Search />} />
+                  <Route path="/browse" element={<Browse />} />
+                  <Route path="/title/:type/:id" element={<TitleDetail />} />
+                  <Route path="/login" element={<PassphraseGate />} />
+                  <Route
+                    path="/list"
+                    element={
+                      <RequireAuth>
+                        <ListLayout />
+                      </RequireAuth>
+                    }
+                  >
+                    <Route index element={<Navigate to="watchlist" replace />} />
+                    <Route path="watchlist" element={<Watchlist />} />
+                    <Route path="later" element={<WatchLater />} />
+                    <Route path="watched" element={<Watched />} />
+                    <Route path="lists" element={<CustomLists />} />
+                  </Route>
+                  <Route path="*" element={<NotFound />} />
                 </Route>
-                <Route path="*" element={<NotFound />} />
-              </Route>
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </IntroGate>
       </TooltipProvider>
     </WatchlistProvider>
   </QueryClientProvider>
