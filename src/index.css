@@ -1,4 +1,7 @@
-@import url("https://api.fontshare.com/v2/css?f[]=chillax@500,600,700&f[]=synonym@400,500,600,700&display=swap");
+/* Two separate requests on purpose: asking Fontshare for both families in one
+   URL silently drops Synonym from the response. */
+@import url("https://api.fontshare.com/v2/css?f[]=chillax@500,600,700&display=swap");
+@import url("https://api.fontshare.com/v2/css?f[]=synonym@400,500,600&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -40,8 +43,8 @@
   --danger: #b5605a;
   --gold: #d9bd8f;
 
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-display: 'Fraunces', 'Inter', system-ui, sans-serif;
+  --font-sans: 'Synonym', system-ui, -apple-system, sans-serif;
+  --font-display: 'Chillax', 'Synonym', system-ui, sans-serif;
 }
 
 @theme {
@@ -71,8 +74,8 @@
   --color-danger: var(--danger);
   --color-gold: var(--gold);
 
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-display: 'Fraunces', 'Inter', system-ui, sans-serif;
+  --font-sans: 'Synonym', system-ui, -apple-system, sans-serif;
+  --font-display: 'Chillax', 'Synonym', system-ui, sans-serif;
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
