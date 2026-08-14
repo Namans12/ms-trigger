@@ -1,11 +1,8 @@
 import { useEffect, useRef } from "react";
-import { SpotlightLogo } from "@/components/brand/SpotlightLogo";
 
 interface IntroScreenProps {
   onEnter: () => void;
 }
-
-const WORDMARK = "Spotlight";
 
 export function IntroScreen({ onEnter }: IntroScreenProps) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -54,37 +51,13 @@ export function IntroScreen({ onEnter }: IntroScreenProps) {
       role="dialog"
       aria-modal="true"
       aria-label="Welcome to Spotlight"
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center px-6 text-center bg-background overflow-hidden"
+      className="fixed inset-0 z-[100] flex flex-col items-center justify-center px-6 text-center bg-black overflow-hidden"
     >
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(circle at 50% 32%, rgb(204 172 124 / 0.10), transparent 60%)" }}
+      <img
+        src="/spotlight-lockup.png"
+        alt="Spotlight — Find what's worth watching"
+        className="intro-lockup w-full max-w-lg sm:max-w-xl"
       />
-
-      <div className="relative w-24 h-24 sm:w-32 sm:h-32 mb-6">
-        <SpotlightLogo fluid animated />
-      </div>
-
-      <h1 className="font-display text-5xl sm:text-6xl font-semibold tracking-tight text-foreground" aria-label={WORDMARK}>
-        {WORDMARK.split("").map((ch, i) => (
-          <span
-            key={i}
-            aria-hidden="true"
-            className="intro-letter inline-block"
-            style={{ animationDelay: `${0.55 + i * 0.045}s` }}
-          >
-            {ch}
-          </span>
-        ))}
-      </h1>
-
-      <div className="intro-tagline flex items-center gap-3 mt-4">
-        <span className="h-px w-8 bg-accent/50" />
-        <p className="text-[11px] sm:text-xs font-medium tracking-[0.25em] uppercase text-muted-foreground">
-          Find what&apos;s worth watching
-        </p>
-        <span className="h-px w-8 bg-accent/50" />
-      </div>
 
       <button
         ref={buttonRef}
