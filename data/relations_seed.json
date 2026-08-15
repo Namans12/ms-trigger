@@ -1,0 +1,33 @@
+[
+  {
+    "from": { "media_type": "movie", "tmdb_id": 693134, "title": "Dune: Part Two", "year": 2024 },
+    "must": [
+      {
+        "title": "Dune",
+        "year": 2021,
+        "direction": "before",
+        "confidence": 1.0,
+        "reason": "Direct first half of the same story."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 109414, "title": "This Is the End", "year": 2013 },
+    "must": [],
+    "can": [
+      {
+        "title": "Pineapple Express",
+        "year": 2008,
+        "confidence": 0.9,
+        "reason": "A running thread of the film's jokes — including a fake sequel pitch — assumes you've seen it."
+      },
+      {
+        "title": "Superbad",
+        "year": 2007,
+        "confidence": 0.75,
+        "reason": "The cast play exaggerated versions of the personas they built here."
+      }
+    ]
+  }
+]

@@ -1,0 +1,22 @@
+-- Spotlight migration 0004: reverse-lookup index on title_relations.
+--
+-- 0003 deliberately shipped no index beyond the primary key and source, on the
+-- grounds that the PK's leading columns serve every *forward* traversal. That
+-- reasoning still holds — this index exists for an access pattern 0003 did not
+-- have: reading a title's own denormalised fields off the edges pointing AT it.
+--
+-- getOrigin() in lib/relationsDb.ts uses that to render the connections view's
+-- "you are here" node without a TMDB call, and it runs on every relations
+-- request, including the depth-1 read behind every title detail page.
+--
+-- Measured at 20k rows (the ceiling the generators' 12-edge fan-out cap allows),
+-- fully cached, probing mid-table:
+--
+--   seq scan   1.695 ms   385 shared buffers   20,009 rows discarded
+--   index scan 0.044 ms     3 shared buffers        0 rows discarded
+--
+-- 38x faster for 632 kB against a 3 MB table. The seq scan grows linearly with
+-- the seed while the index stays flat, and the generators that pay the write
+-- cost are manual and offline, so that cost is free in practice.
+
+CREATE INDEX idx_title_relations_to ON title_relations (to_media_type, to_tmdb_id);

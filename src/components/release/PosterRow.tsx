@@ -9,11 +9,16 @@ interface PosterRowProps {
   items: Movie[];
   icon?: React.ReactNode;
   subtitle?: string;
+  /** One-line explanation shown under a card — used by Can Watch, where each
+   * title leans on a specific, named reason rather than general taste. */
+  reasonFor?: (movie: Movie) => string | null | undefined;
+  /** Thumbs-down, owner-only. Omit entirely for rows that shouldn't offer it. */
+  onSuppress?: (movie: Movie) => void;
 }
 
 /** Horizontally scrolling poster row — the shared shape behind every
  * "Trending", "Because you added…" and "You may also like" strip. */
-export function PosterRow({ title, items, icon, subtitle }: PosterRowProps) {
+export function PosterRow({ title, items, icon, subtitle, reasonFor, onSuppress }: PosterRowProps) {
   const wl = useWatchlistContext();
   const ratingFor = useRatings(items);
   if (items.length === 0) return null;
@@ -35,6 +40,8 @@ export function PosterRow({ title, items, icon, subtitle }: PosterRowProps) {
             className="flex-shrink-0 w-[130px] sm:w-[150px]"
             onAddToWatchlist={() => wl.addToWatchlist(movie)}
             onAddToWatchLater={() => wl.addToWatchLater(movie)}
+            reason={reasonFor?.(movie)}
+            onSuppress={onSuppress ? () => onSuppress(movie) : undefined}
           />
         ))}
       </div>

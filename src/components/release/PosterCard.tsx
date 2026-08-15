@@ -3,7 +3,7 @@ import type { ReleaseItem } from '@/types/digest';
 import { ActionButton } from '@/components/watchlist/ActionButton';
 import { RatingBadges } from '@/components/release/RatingBadges';
 import { hasAnyScore, type TitleRating } from '@/lib/ratings';
-import { Film, Tv, Star, Plus, Clock } from 'lucide-react';
+import { Film, Tv, Star, Plus, Clock, ThumbsDown } from 'lucide-react';
 
 interface PosterCardProps {
   item: ReleaseItem;
@@ -13,12 +13,26 @@ interface PosterCardProps {
   className?: string;
   /** IMDb/RT scores when the cache has them; falls back to the TMDB score. */
   rating?: TitleRating | null;
+  /** One-line, user-facing explanation shown under the title — used by
+   * Can Watch cards ("a running thread of jokes calls back to..."). */
+  reason?: string | null;
+  /** Thumbs-down, owner-only. Present only on relation cards. */
+  onSuppress?: () => void;
 }
 
 /** Poster-forward vertical tile for grid contexts (Home, Calendar, Browse,
  * Search) — as opposed to ReleaseCard's horizontal row, used in list contexts
  * (My List) where a drag handle and dense rows make more sense. */
-export function PosterCard({ item, linkTo, onAddToWatchlist, onAddToWatchLater, className = '', rating }: PosterCardProps) {
+export function PosterCard({
+  item,
+  linkTo,
+  onAddToWatchlist,
+  onAddToWatchLater,
+  className = '',
+  rating,
+  reason,
+  onSuppress,
+}: PosterCardProps) {
   const year = item.releaseDate?.slice(0, 4);
   const hasActions = onAddToWatchlist || onAddToWatchLater;
   const provider = item.providers?.[0];
@@ -37,6 +51,21 @@ export function PosterCard({ item, linkTo, onAddToWatchlist, onAddToWatchLater, 
           <div className="w-full h-full flex items-center justify-center text-muted-foreground">
             {item.mediaType === 'tv' ? <Tv size={28} /> : <Film size={28} />}
           </div>
+        )}
+
+        {onSuppress && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onSuppress();
+            }}
+            aria-label="Not interested in this suggestion"
+            className="absolute top-2 left-2 inline-flex items-center justify-center w-7 h-7 rounded-md bg-background/70 text-muted-foreground backdrop-blur-sm hover:bg-background/90 hover:text-foreground transition-all"
+          >
+            <ThumbsDown size={12} />
+          </button>
         )}
 
         {hasAnyScore(rating) ? (
@@ -61,6 +90,8 @@ export function PosterCard({ item, linkTo, onAddToWatchlist, onAddToWatchLater, 
         </span>
         {provider && <span className="text-[10px] text-accent font-medium truncate">{provider}</span>}
       </div>
+
+      {reason && <p className="mt-1 text-[10px] text-muted-foreground leading-snug line-clamp-2">{reason}</p>}
 
       {/* Always rendered, never hover-gated: as a hover overlay these were
           completely unreachable on touch devices and undiscoverable on desktop,

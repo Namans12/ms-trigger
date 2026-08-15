@@ -41,6 +41,7 @@ function resolveHandlerFile(pathname) {
   if (pathname === "/api/releases") return "api/releases.ts";
   if (pathname === "/api/releases-refresh") return "api/releases-refresh.ts";
   if (pathname === "/api/ratings") return "api/ratings.ts";
+  if (pathname === "/api/relations") return "api/relations.ts";
   if (pathname === "/api/tmdb" || pathname.startsWith("/api/tmdb/")) return "api/tmdb/[...path].ts";
   if (pathname === "/api/watchlist" || pathname.startsWith("/api/watchlist/")) return "api/watchlist/[[...path]].ts";
   return null;

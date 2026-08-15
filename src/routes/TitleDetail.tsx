@@ -1,15 +1,30 @@
 import { useParams, Link } from 'react-router-dom';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchTitleDetail, titleDetailToMovie } from '@/lib/tmdbDetail';
 import { useAuth } from '@/hooks/useAuth';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { ActionButton } from '@/components/watchlist/ActionButton';
 import { PosterRow } from '@/components/release/PosterRow';
+import { useRelations } from '@/hooks/useRelations';
+import { hasAnyRelations, hasChain } from '@/lib/relations';
 import { getYouMayAlsoLike, type MediaType } from '@/lib/tmdb';
 import { RatingBadges } from '@/components/release/RatingBadges';
 import { useRating } from '@/hooks/useRatings';
 import { hasAnyScore } from '@/lib/ratings';
-import { ArrowLeft, Star, Clock, ExternalLink, Plus, Loader2, Sparkles } from 'lucide-react';
+import {
+  ArrowLeft,
+  Star,
+  Clock,
+  ExternalLink,
+  Plus,
+  Loader2,
+  Sparkles,
+  ListOrdered,
+  Popcorn,
+  ChevronRight,
+  ChevronDown,
+} from 'lucide-react';
 
 export default function TitleDetail() {
   const { type, id } = useParams();
@@ -17,6 +32,14 @@ export default function TitleDetail() {
   const tmdbId = Number(id);
   const { isAuthenticated } = useAuth();
   const wl = useWatchlistContext();
+  const [showRecommendations, setShowRecommendations] = useState(false);
+
+  // Depth 1 is all this page needs: it only asks "is there anything to go and
+  // look at". The connections view does the real walk at MAX_DEPTH.
+  const relationsQuery = useRelations(mediaType, tmdbId, 1);
+  const relations = relationsQuery.data;
+  const showConnections = hasAnyRelations(relations);
+  const isChain = hasChain(relations);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['tmdb', 'detail', mediaType, tmdbId],
@@ -154,8 +177,44 @@ export default function TitleDetail() {
         </a>
       </div>
 
-      {recommendations.length > 0 && (
-        <div className="px-1 pt-2">
+      {/* Two doors, deliberately unequal. "What does this assume I've seen" is
+          a sharper question than "what else might I like", so relations get a
+          screen of their own while recommendations stay folded away here. Both
+          self-hide when there's nothing behind them. */}
+      {(showConnections || recommendations.length > 0) && (
+        <div className="px-1 pt-1 flex flex-wrap gap-2">
+          {showConnections && (
+            <Link
+              to={`/title/${mediaType}/${tmdbId}/connections`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary text-secondary-foreground text-xs font-semibold hover:bg-card-hover active:scale-95 transition-all"
+            >
+              <span className="text-accent">{isChain ? <ListOrdered size={14} /> : <Popcorn size={14} />}</span>
+              {isChain ? 'Watch order' : 'Can Watch'}
+              <ChevronRight size={13} className="text-muted-foreground" />
+            </Link>
+          )}
+          {recommendations.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowRecommendations((open) => !open)}
+              aria-expanded={showRecommendations}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary text-secondary-foreground text-xs font-medium hover:bg-card-hover active:scale-95 transition-all"
+            >
+              <span className="text-accent">
+                <Sparkles size={14} />
+              </span>
+              You may also like
+              <ChevronDown
+                size={13}
+                className={`text-muted-foreground transition-transform duration-200 ${showRecommendations ? 'rotate-180' : ''}`}
+              />
+            </button>
+          )}
+        </div>
+      )}
+
+      {showRecommendations && recommendations.length > 0 && (
+        <div className="px-1">
           <PosterRow title="You may also like" icon={<Sparkles size={16} />} items={recommendations} />
         </div>
       )}
