@@ -108,13 +108,26 @@
   50% { transform: scale(0.93); }
   100% { transform: scale(1); }
 }
-@keyframes intro-image-in {
-  0% { opacity: 0; transform: scale(0.94); }
-  100% { opacity: 1; transform: scale(1); }
+@keyframes fixture-drop-in {
+  0% { opacity: 0; transform: translateX(calc(-1 * var(--rod-pct, 37.4%))) scale(0.94); }
+  100% { opacity: 1; transform: translateX(calc(-1 * var(--rod-pct, 37.4%))) scale(1); }
 }
 @keyframes intro-exit {
   0% { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(1.03); }
+}
+@keyframes meteor {
+  /* -80vh here (combined with the -215deg angle's effective double rotation,
+     see .intro-meteor) works out to roughly 75% of the viewport height of
+     actual downward travel — tuned rather than derived from a round number. */
+  0% { transform: rotate(var(--meteor-angle)) translateX(0); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: rotate(var(--meteor-angle)) translateX(-80vh); opacity: 0; }
+}
+@keyframes shimmer-sweep {
+  0% { background-position: 200% 0; }
+  60% { background-position: -40% 0; }
+  100% { background-position: -40% 0; }
 }
 
 @layer base {
@@ -173,15 +186,113 @@
 
 /* Intro screen: visible immediately by default; only animated for users who
    haven't asked to reduce motion (see prefers-reduced-motion query below). */
-.intro-lockup,
+.intro-fixture,
+.intro-heading,
+.intro-tagline,
 .intro-cta {
   opacity: 1;
 }
 
+.intro-fixture {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: clamp(220px, 26vw, 340px);
+  height: auto;
+  transform: translateX(calc(-1 * var(--rod-pct, 37.4%)));
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.6));
+  pointer-events: none;
+}
+
+.intro-copy {
+  margin-top: clamp(5rem, 15vh, 8rem);
+}
+
+.intro-meteors {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.intro-meteor {
+  position: absolute;
+  height: 2px;
+  width: 2px;
+  border-radius: 9999px;
+  background: rgba(232, 225, 216, 0.9);
+  box-shadow: 0 0 0 1px rgba(217, 189, 143, 0.15), 0 0 8px rgba(217, 189, 143, 0.6);
+  /* Individual `rotate` property (distinct from `transform`) so the tilt survives
+     the keyframe's own `transform: rotate(...) translateX(...)` — a `transform`
+     animation fully replaces the property, it doesn't compose with a static
+     `transform` rule on the same element. Composing rotate + rotate(in transform)
+     is what actually sends the meteor down-left; a single rotation sends it
+     up-right off the top of the screen instead. */
+  rotate: var(--meteor-angle, -215deg);
+}
+
+.intro-meteor-tail {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 1px;
+  width: 60px;
+  transform: translateY(-50%);
+  background: linear-gradient(to right, rgba(217, 189, 143, 0.8), transparent);
+}
+
+.intro-heading {
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+.intro-hit-letter {
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(217, 189, 143, 0.7);
+}
+
+/* Simulates spill light from the beam landing across the tail of the word:
+   a smooth gradient (not discrete per-letter color) so "i" eases in from the
+   plain cream tone while "ght" sits fully lit, avoiding hard seams between
+   lit/unlit glyphs. */
+.intro-glare {
+  background: linear-gradient(to right, var(--foreground) 0%, #fff3da 45%, #fff8ec 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 24px rgba(255, 226, 164, 0.55);
+}
+
+.intro-tagline {
+  font-size: clamp(0.75rem, 2vw, 0.95rem);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.intro-cta-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  .intro-lockup {
+  .intro-fixture {
     opacity: 0;
-    animation: intro-image-in 0.8s ease-out both;
+    animation: fixture-drop-in 0.9s ease-out both;
+  }
+  .intro-heading {
+    opacity: 0;
+    animation: slide-up 0.6s ease-out 0.35s both;
+  }
+  .intro-tagline {
+    opacity: 0;
+    animation: slide-up 0.6s ease-out 0.55s both;
   }
   .intro-cta {
     opacity: 0;
@@ -189,5 +300,19 @@
   }
   .intro-exit {
     animation: intro-exit 0.45s ease-in forwards;
+  }
+  .intro-meteor {
+    animation: meteor linear infinite;
+  }
+  .intro-cta-shine::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.55) 50%, transparent 80%);
+    background-size: 200% 100%;
+    background-position: 200% 0;
+    mix-blend-mode: overlay;
+    animation: shimmer-sweep 3.2s ease-in-out infinite;
+    animation-delay: 1.6s;
   }
 }
