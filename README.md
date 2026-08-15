@@ -88,7 +88,9 @@ Using your own Gmail (or any account) as the sender needs an **app password**, n
 
 1. Create a free project at https://neon.tech (pick a region close to your Vercel deployment region).
 2. Copy the pooled connection string.
-3. Run the migrations once, in order: `psql "$DATABASE_URL" -f migrations/0001_init.sql` then `psql "$DATABASE_URL" -f migrations/0002_title_ratings.sql` (or via a Python one-liner with `psycopg` if you don't have `psql` installed).
+3. Run the migrations once, in order: `0001_init.sql`, `0002_title_ratings.sql`, `0003_title_relations.sql`, `0004_title_relations_reverse_index.sql`, `0005_title_relation_lookups.sql`, `0006_calendar_entries_poster.sql` — e.g. `psql "$DATABASE_URL" -f migrations/0001_init.sql` for each (or via a Python one-liner with `psycopg` if you don't have `psql` installed).
+4. Link the seeded calendar rows to TMDB so they get posters and become clickable: `python scripts/backfill_calendar_tmdb.py` (safe to re-run; it only touches rows still missing a `tmdb_id`).
+5. Keep the calendar populated past the seeded window: `python scripts/sync_calendar_tmdb.py --months 6`. Pulls region-aware theatrical dates (`/discover/movie` with `region` + `with_release_type=2|3` + `release_date.gte/lte` — not `primary_release_date.*`, which ignores `region` entirely and returns global junk) and TV premieres, and only ever *enriches* existing rows — a curated editorial row keeps its own platform and details and merely gains a poster and a `tmdb_id`. Queries one calendar month at a time rather than the whole window at once — TMDB caps each `/discover` call at a fixed page limit regardless of true match count, so a single big-range query lets a handful of popular titles anywhere in it crowd out an entire other month's releases before the cap even applies (confirmed directly: a 6-month single-query window had 178 real matches behind a 60-result cap, silently dropping 118). TV premieres are additionally scoped by `--tv-countries` (default `IN,US,GB`) — TMDB is crowdsourced and global TV volume runs into the hundreds a month, almost all obscure local productions; this trades missing an occasional big non-English hit for not drowning the calendar in noise. Runs nightly (see below).
 4. Optionally seed the editorial calendar: `python scripts/seed_calendar_csv.py`.
 
 ### 6. Add secrets to GitHub
@@ -126,7 +128,7 @@ And one repo **variable** (not secret) under the same page's "Variables" tab:
 
 ### 8. Done
 
-`.github/workflows/ott-radar.yml` runs Wed/Fri at 2:00 PM IST (Telegram + email + Postgres refresh). `.github/workflows/ott-radar-nightly.yml` runs daily (Postgres refresh only, no notifications). Both can be triggered manually from the Actions tab.
+`.github/workflows/ott-radar.yml` runs Wed/Fri at 2:00 PM IST (Telegram + email + Postgres refresh). `.github/workflows/ott-radar-nightly.yml` runs daily (Postgres refresh, ratings backfill, calendar sync + TMDB linking — no notifications). Both can be triggered manually from the Actions tab.
 
 ## Configuration (env vars)
 
@@ -172,6 +174,71 @@ call while rendering a poster grid. So nothing does:
 
 With `OMDB_API_KEY` unset every path returns "no ratings" and the UI shows
 nothing — no errors, no 500s, no degraded cards.
+
+## Must Watch / Can Watch (title relations)
+
+A title's detail page shows what it assumes you've seen — split into two
+buckets, stored as direct edges in `title_relations`
+(`migrations/0003_title_relations.sql`):
+
+- **Must Watch** — narrative continuity (prerequisites and continuations).
+  Franchise chains come from TMDB's `belongs_to_collection`. These are **not
+  limited to a curated list**: on a miss, `api/relations.ts` fetches the title's
+  collection once, writes the whole chain, and serves it, so searching any film
+  gets a Watch order. The first visitor pays two TMDB calls; everyone after
+  reads Postgres. `title_relation_lookups` records the answer — including "this
+  title has no collection" — so a standalone film isn't re-checked on every
+  view, and a network failure is deliberately never cached as "there is
+  nothing". `scripts/sync_relations_tmdb.py` does the same thing in bulk,
+  offline, for warming ahead of time.
+- **Can Watch** — enrichment (references, callbacks, shared-cast in-jokes).
+  No structured source can produce these, so they come from an agent session
+  run by hand: see [docs/relations-seed-prompt.md](docs/relations-seed-prompt.md)
+  for the prompt and workflow, `data/relations_seed.json` for the format, and
+  `scripts/seed_relations.py` for the loader.
+
+A third source, Wikidata `P155`/`P156` sequence data, was built and
+**deliberately not shipped** — `scripts/sync_relations_wikidata.py --spot-check`
+found ~17% of its edges wrong (including a prequel whose direction came out
+inverted), no coverage at all for shared universes, and no way for the offline
+seed to correct it afterwards. The script's docstring records the evidence; run
+the spot check again before reconsidering.
+
+Both generators are manual, offline, and idempotent — re-running either over
+unchanged input changes no rows, and a thumbed-down edge survives a full
+regeneration. Every candidate passes one shared validation gate
+(`scripts/lib_relations.py`): it must resolve to a real TMDB id, must not be a
+self-edge, and must not use an unreleased title as a prerequisite. Rejections
+are printed with a reason, and "TMDB said no such title" is reported separately
+from "TMDB was unreachable" — only the second is fixed by running again.
+
+Generation is offline and manual, never part of a request or a deployed cron
+— see the design doc for why. `GET /api/relations?type=movie&id=603&depth=1`
+is the only read path: public, cache-only, and — like ratings — answers `200`
+with empty arrays on any failure so a title page never fails to render over a
+relation lookup.
+
+**Where it shows up.** A title's detail page carries a *Watch order* button
+when it has relations (and nothing at all when it doesn't); recommendations
+sit behind a *You may also like* toggle beside it, collapsed by default. The
+button opens `/title/:type/:id/connections`, which plots the full chain as a
+timeline — numbered position, cover art, release date, a "you're here" marker,
+and a connector that fills as you scroll.
+
+That view walks the chain at `MAX_DEPTH` and needs **zero** TMDB calls: every
+node, including the title you're on, renders from denormalised columns on
+`title_relations`. The origin's own fields come back on the same response,
+recovered from the reciprocal edges pointing at it — so the timeline stays
+whole even when TMDB is unreachable.
+
+**Correcting a bad edge.** Signed in as the owner, each related title carries a
+thumbs-down; `POST /api/relations` sets `suppressed` and the edge is gone for
+good. That is the *only* correction mechanism, by design: the upsert precedence
+ladder (`tmdb` > `wikidata` > `seed` > `llm`) means a lower-trust generator can
+never overwrite a higher-trust one, so a wrong TMDB collection edge cannot be
+fixed by re-seeding. No generator ever clears `suppressed`, so the correction
+survives a full regeneration. There is no un-suppress in the UI — reversing one
+is a single `UPDATE` on a single-owner app.
 
 ## News augmentation (why the digest is fuller than TMDB alone)
 

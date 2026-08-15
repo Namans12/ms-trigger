@@ -33,7 +33,10 @@ const SECTIONS: { kind: CalendarKind; label: string; icon: React.ReactNode }[] =
   { kind: 'tv_network', label: 'On TV', icon: <Tv size={14} /> },
 ];
 
-const KIND_CHIPS: { id: KindFilter; label: string }[] = [
+/** Tabs, not filter chips: theatrical and OTT are two different questions
+ * ("what's in cinemas" vs "what lands on my subscriptions"), so each gets its
+ * own view rather than a toggle on one list. */
+const TABS: { id: KindFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'theatrical', label: 'In Cinemas' },
   { id: 'streaming', label: 'Streaming' },
@@ -43,15 +46,26 @@ const KIND_CHIPS: { id: KindFilter; label: string }[] = [
 function EntryRow({ entry }: { entry: CalendarEntryDTO }) {
   const body = (
     <div className="flex items-center gap-3 p-3 bg-card rounded-xl border border-border hover:border-accent/30 hover:bg-card-hover transition-all duration-200">
-      <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-muted-foreground">
-        {entry.kind === 'theatrical' ? (
-          <Popcorn size={16} />
-        ) : entry.mediaType === 'tv' ? (
-          <Tv size={16} />
-        ) : (
-          <Film size={16} />
-        )}
-      </div>
+      {/* Poster once the TMDB backfill has resolved the row; the icon tile is
+          the fallback for rows that never matched confidently. */}
+      {entry.posterUrl ? (
+        <img
+          src={entry.posterUrl}
+          alt=""
+          loading="lazy"
+          className="w-9 h-[54px] rounded-lg object-cover bg-secondary shrink-0"
+        />
+      ) : (
+        <div className="w-9 h-[54px] rounded-lg bg-secondary flex items-center justify-center shrink-0 text-muted-foreground">
+          {entry.kind === 'theatrical' ? (
+            <Popcorn size={16} />
+          ) : entry.mediaType === 'tv' ? (
+            <Tv size={16} />
+          ) : (
+            <Film size={16} />
+          )}
+        </div>
+      )}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{entry.title}</p>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
@@ -143,21 +157,24 @@ export default function Calendar() {
         </button>
       </div>
 
-      <div className="flex gap-1.5 overflow-x-auto hide-scrollbar">
-        {KIND_CHIPS.map((chip) => {
-          const count = chip.id === 'all' ? entries.length : counts[chip.id as CalendarKind];
+      <div role="tablist" className="flex gap-1 overflow-x-auto hide-scrollbar border-b border-border">
+        {TABS.map((tab) => {
+          const count = tab.id === 'all' ? entries.length : counts[tab.id as CalendarKind];
+          const active = kind === tab.id;
           return (
             <button
-              key={chip.id}
-              onClick={() => updateParam('kind', chip.id)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium leading-none whitespace-nowrap transition-all duration-200 ${
-                kind === chip.id
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground bg-secondary hover:text-foreground'
+              key={tab.id}
+              role="tab"
+              aria-selected={active}
+              onClick={() => updateParam('kind', tab.id)}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 -mb-px text-xs font-semibold leading-none whitespace-nowrap border-b-2 transition-colors duration-200 ${
+                active
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              {chip.label}
-              {data && <span className="opacity-60">{count}</span>}
+              {tab.label}
+              {data && <span className="opacity-60 font-medium">{count}</span>}
             </button>
           );
         })}

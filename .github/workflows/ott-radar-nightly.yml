@@ -47,3 +47,24 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RATINGS_MAX_CALLS: "400"
         run: python scripts/backfill_ratings.py
+
+      # Keeps calendar_entries populated past whatever the one-time editorial
+      # CSV covered. Region-aware theatrical dates + TV premieres (scoped to
+      # --tv-countries to avoid TMDB's crowdsourced global noise), idempotent,
+      # and enrich-only against any hand-curated row.
+      - name: Sync upcoming calendar from TMDB
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/sync_calendar_tmdb.py --months 6
+
+      # Links any calendar row still missing a tmdb_id (only ever the
+      # editorial CSV rows, or a future manual reseed) so it gets a poster and
+      # becomes clickable. Matches on exact folded title + release year;
+      # anything less confident is left alone rather than risk a wrong poster
+      # on a release calendar. No-op when everything is already linked.
+      - name: Link calendar entries to TMDB
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/backfill_calendar_tmdb.py

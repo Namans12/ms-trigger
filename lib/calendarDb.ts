@@ -35,7 +35,7 @@ export async function getCalendarMonth(sql: postgres.Sql<any>, month: string): P
 
   const csvRows = await sql`
     SELECT release_date::text AS release_date, title, language, entry_type, is_theatrical, platform_or_distributor,
-           tmdb_id, media_type, details
+           tmdb_id, media_type, details, poster_url
     FROM calendar_entries
     WHERE date_trunc('month', release_date::timestamp) = date_trunc('month', ${monthStart}::date)
     ORDER BY release_date
@@ -86,7 +86,9 @@ export async function getCalendarMonth(sql: postgres.Sql<any>, month: string): P
       isTheatrical: kind === "theatrical",
       platform,
       tmdbId: row.tmdb_id !== null ? Number(row.tmdb_id) : null,
-      posterUrl: null,
+      // Filled by scripts/backfill_calendar_tmdb.py; still null for rows it
+      // could not confidently match, which render as a text line as before.
+      posterUrl: row.poster_url ?? null,
       rating: null,
       overview: row.details,
       origin: "csv_seed",
