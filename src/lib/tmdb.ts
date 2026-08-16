@@ -89,18 +89,45 @@ export async function discover(
 }
 
 /** "You may also like": recommendations first, topped up from /similar when
- * TMDB returns a thin recommendation set (common for new or niche titles). */
-export async function getYouMayAlsoLike(type: MediaType, id: number): Promise<Movie[]> {
+ * TMDB returns a thin recommendation set (common for new or niche titles).
+ *
+ * /similar is a materially weaker signal than /recommendations — TMDB builds
+ * it from genre/keyword overlap rather than behavioural data, and for a title
+ * with thin metadata (a new, small regional release) that overlap can match
+ * almost anything. Confirmed in production: for a 2026 Hindi action-drama
+ * sequel, /similar's top results included a 1941 English bullfighting drama
+ * and two WWE pay-per-view specials — genre-adjacent by TMDB's own tagging,
+ * completely irrelevant to an actual viewer.
+ *
+ * `originalLanguage`, when the caller has it, restricts /similar's
+ * contribution to same-language titles — the plausible peers for a niche
+ * regional film are other films in that language, not whatever TMDB's
+ * keyword graph loosely connects it to worldwide. /recommendations is left
+ * unfiltered since it's the trustworthy signal already. */
+export async function getYouMayAlsoLike(
+  type: MediaType,
+  id: number,
+  originalLanguage?: string,
+): Promise<Movie[]> {
   const [recs, similar] = await Promise.all([
     getRecommendations(type, id).catch(() => [] as Movie[]),
     getSimilar(type, id).catch(() => [] as Movie[]),
   ]);
+
   const seen = new Set<number>([id]);
   const out: Movie[] = [];
-  for (const movie of [...recs, ...similar]) {
+
+  for (const movie of recs) {
     if (seen.has(movie.id)) continue;
     seen.add(movie.id);
     out.push(movie);
   }
+  for (const movie of similar) {
+    if (seen.has(movie.id)) continue;
+    if (originalLanguage && movie.originalLanguage !== originalLanguage) continue;
+    seen.add(movie.id);
+    out.push(movie);
+  }
+
   return out.slice(0, 20);
 }

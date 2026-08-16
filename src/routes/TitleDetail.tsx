@@ -50,8 +50,11 @@ export default function TitleDetail() {
 
   const recommendationsQuery = useQuery({
     queryKey: ['tmdb', 'you-may-also-like', mediaType, tmdbId],
-    queryFn: () => getYouMayAlsoLike(mediaType as MediaType, tmdbId),
-    enabled: Number.isFinite(tmdbId),
+    // Waits on `data` so the origin's own language is known before the
+    // /similar fallback filters by it — recommendations sit behind a
+    // collapsed toggle, so the small added latency costs nothing visible.
+    queryFn: () => getYouMayAlsoLike(mediaType as MediaType, tmdbId, data?.originalLanguage),
+    enabled: Number.isFinite(tmdbId) && !!data,
     staleTime: 60 * 60_000,
   });
   const recommendations = recommendationsQuery.data ?? [];

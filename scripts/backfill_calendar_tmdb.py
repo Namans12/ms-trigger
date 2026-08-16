@@ -12,6 +12,12 @@ within a year of the calendar's date. Anything less is left alone: the failure
 mode of a fuzzy match here is a release calendar confidently showing the wrong
 film's poster, which is worse than showing none. Every skip is printed.
 
+Title matching alone is not enough, though: TMDB has no uniqueness constraint
+on titles, so two unrelated films can share an exact title and both land in
+the "matches" set (found in production — see search()'s docstring). When that
+happens, the candidate closest in release date to the calendar's own date
+wins, since that is the one signal TMDB's own result ordering doesn't use.
+
 Safe to re-run, and designed to be: it only looks at rows still missing a
 tmdb_id, so a run interrupted by a flaky network picks up where it left off.
 
@@ -26,6 +32,7 @@ import argparse
 import os
 import re
 import sys
+from datetime import date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -87,21 +94,80 @@ def title_variants(title: str, media_type: str) -> list[str]:
     return variants
 
 
-def search(session: requests.Session, tmdb_key: str, media_type: str, title: str, year: int | None):
-    """TMDB search, returning a confidently-matching result or None."""
+def _days_from(target: date, iso_date: str) -> float:
+    if not iso_date:
+        return float("inf")
+    try:
+        return abs((datetime.strptime(iso_date, "%Y-%m-%d").date() - target).days)
+    except ValueError:
+        return float("inf")
+
+
+def search(session: requests.Session, tmdb_key: str, media_type: str, title: str, release_date: date):
+    """TMDB search, returning the best-matching result or None.
+
+    TMDB titles are not unique: a generic word like "King" can name two
+    unrelated 2026 releases at once, and TMDB's relevance ranking does not
+    reliably put the intended one first — confirmed directly, where a
+    17-minute short (popularity 1.6) outranked the real theatrical release
+    (popularity 2.3) in search results, and taking the first exact-title hit
+    silently linked the calendar to the wrong film.
+
+    So every exact-title candidate within a year is collected, not just the
+    first, and the one closest in days to the calendar's own release date
+    wins — a signal TMDB's ranking doesn't have and we do.
+
+    That collection only works if the right candidate is actually on the page
+    fetched, though — and for a common word like "King", it often isn't: TMDB
+    's plain-query search for "King" doesn't return the 2026-12-24 release on
+    page 1 at all (confirmed directly), only the unrelated short film.
+
+    So the primary variant is queried twice — once plain, once with
+    `year`/`first_air_date_year` — and the results are merged. The year-scoped
+    call is what surfaces "King"'s real match at all. But that same param is a
+    hard, exact-year filter with no tolerance: confirmed directly, querying a
+    legitimately-linked show with `first_air_date_year` set to the *calendar's*
+    year (2026) returned zero results, because its real first_air_date is
+    2025 — a normal regional/streaming delay, not a wrong link. Sending only
+    the year-scoped query would have silently unlinked every title arriving in
+    this calendar more than a few months after its original release. The plain
+    query is what still finds those; local `years_match` (±1 year) is the only
+    place tolerance is actually applied.
+    """
     path = "/search/movie" if media_type == "movie" else "/search/tv"
+    year = release_date.year if release_date else None
+    year_param = "year" if media_type == "movie" else "first_air_date_year"
 
     for index, variant in enumerate(title_variants(title, media_type)):
-        payload = tmdb_get(session, path, tmdb_key, {"query": variant, "include_adult": "false"})
         is_stripped = index > 0
-        for result in (payload or {}).get("results", []):
+        base_params = {"query": variant, "include_adult": "false"}
+
+        payloads = [tmdb_get(session, path, tmdb_key, base_params)]
+        # Skipped for the season-stripped fallback: that variant exists
+        # precisely because the season's own air date is not the series'
+        # first_air_date, so biasing the request toward `year` would defeat it.
+        if not is_stripped and year is not None:
+            payloads.append(tmdb_get(session, path, tmdb_key, {**base_params, year_param: year}))
+
+        by_id = {}
+        for payload in payloads:
+            for result in (payload or {}).get("results", []):
+                by_id[result["id"]] = result
+
+        candidates = []
+        for result in by_id.values():
             candidate_title = result.get("title") or result.get("name") or ""
             if not titles_match(variant, candidate_title):
                 continue
             candidate_date = result.get("release_date") or result.get("first_air_date") or ""
             if not is_stripped and not years_match(year, candidate_date):
                 continue
-            return result
+            candidates.append((result, candidate_date))
+        if not candidates:
+            continue
+        if len(candidates) > 1:
+            candidates.sort(key=lambda c: _days_from(release_date, c[1]))
+        return candidates[0][0]
     return None
 
 
@@ -144,7 +210,7 @@ def main() -> int:
                 found_type = None
                 try:
                     for media_type in order:
-                        result = search(session, tmdb_key, media_type, title, year)
+                        result = search(session, tmdb_key, media_type, title, release_date)
                         rate_limit_gap(REQUEST_GAP_SECONDS)
                         if result is not None:
                             found_type = media_type

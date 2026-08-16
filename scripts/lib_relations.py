@@ -216,11 +216,26 @@ def resolve_title_year(
     ±1). Used by generators that only have a name to go on (Wikidata, the
     offline seed) — never by the TMDB-collection generator, which already has
     a real id. Returns None rather than guessing when nothing matches well
-    enough; the caller must drop the candidate, not invent one."""
+    enough; the caller must drop the candidate, not invent one.
+
+    TMDB titles are not unique — confirmed in production, where a calendar
+    row titled "King" (2026) matched an unrelated 17-minute short also titled
+    "King" (2026) instead of the intended theatrical release, because (a) the
+    intended title didn't even appear in a plain-query search's first page
+    without `year` sent to the request itself, and (b) taking the first
+    exact-title hit picked whichever the API listed first, not the right one.
+    Both fixes apply here: `year` is sent as a real search parameter, not just
+    a local post-filter, and every exact-title match found is ranked — closest
+    to `year`, then most popular — rather than returning the first one.
+    """
     path = "/search/movie" if media_type == "movie" else "/search/tv"
-    payload = tmdb_get(session, path, tmdb_key, {"query": title, "include_adult": "false"})
+    params = {"query": title, "include_adult": "false"}
+    if year is not None:
+        params["year" if media_type == "movie" else "first_air_date_year"] = year
+    payload = tmdb_get(session, path, tmdb_key, params)
     results = (payload or {}).get("results", [])
 
+    candidates = []
     for r in results:
         candidate_title = r.get("title") or r.get("name") or ""
         if not titles_match(title, candidate_title):
@@ -228,16 +243,33 @@ def resolve_title_year(
         candidate_date = r.get("release_date") or r.get("first_air_date") or ""
         if not years_match(year, candidate_date):
             continue
-        return Candidate(
-            media_type,
-            r["id"],
-            r.get("title") or r.get("name") or title,
-            r.get("poster_path"),
-            _to_iso_date(candidate_date),
-            None,
-            None,
-        )
-    return None
+        candidates.append(r)
+
+    if not candidates:
+        return None
+
+    def rank(r: dict[str, Any]) -> tuple[float, float]:
+        candidate_date = r.get("release_date") or r.get("first_air_date") or ""
+        year_gap = float("inf")
+        if year is not None and candidate_date:
+            try:
+                year_gap = abs(int(candidate_date[:4]) - year)
+            except ValueError:
+                pass
+        return (year_gap, -float(r.get("popularity") or 0))
+
+    candidates.sort(key=rank)
+    best = candidates[0]
+    candidate_date = best.get("release_date") or best.get("first_air_date") or ""
+    return Candidate(
+        media_type,
+        best["id"],
+        best.get("title") or best.get("name") or title,
+        best.get("poster_path"),
+        _to_iso_date(candidate_date),
+        None,
+        None,
+    )
 
 
 def fetch_by_id(
