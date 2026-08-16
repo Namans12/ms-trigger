@@ -163,6 +163,42 @@ def search(session: requests.Session, tmdb_key: str, media_type: str, title: str
             if not is_stripped and not years_match(year, candidate_date):
                 continue
             candidates.append((result, candidate_date))
+
+        # A renewed TV show's first_air_date can be years — sometimes decades
+        # — before whatever season this calendar row represents, so an empty
+        # year-tolerant result here is not evidence the show is missing from
+        # TMDB. It is evidence the year check is the wrong tool for TV.
+        #
+        # Found in production, 10 rows deep: Sugar, Big Brother, King of the
+        # Hill, The Chosen and others were all linked to an unrelated MOVIE
+        # that happened to satisfy the year check, because this function
+        # returned None for the correct TV search and the caller's fallback
+        # tried the other media type next. Getting the media type right
+        # matters more than getting the date close, so for TV the year
+        # restriction is dropped and retried — title match is still required —
+        # before this variant gives up.
+        #
+        # Tiebreak among the fallback candidates is by popularity, not date:
+        # date is exactly the signal we just gave up trusting, so reusing it
+        # here just relocates the same failure. Confirmed directly — sorting
+        # this branch by date picked an obscure US "Trying" (popularity 0.66)
+        # over the real Apple TV+ show (30.57), and an obscure regional "Big
+        # Brother" format over the CBS original, purely because each decoy's
+        # air date happened to land a few days closer to the target year.
+        # Every genuine match found in production had popularity several
+        # times higher than any same-titled decoy; that gap is the reliable
+        # part once the calendar date itself no longer disambiguates.
+        if not candidates and media_type == "tv" and not is_stripped:
+            fallback = [
+                result
+                for result in by_id.values()
+                if titles_match(variant, result.get("title") or result.get("name") or "")
+            ]
+            if fallback:
+                fallback.sort(key=lambda r: -(r.get("popularity") or 0))
+                return fallback[0]
+            continue
+
         if not candidates:
             continue
         if len(candidates) > 1:
