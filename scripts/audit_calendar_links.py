@@ -9,8 +9,23 @@ sent `year` as an actual search parameter, and took the first exact-title
 match rather than the best one) is fixed, but that fix only prevents new
 mismatches — it does nothing for rows already linked before the fix existed.
 
-This runs in two stages, because a big date gap alone is not proof of a wrong
-link:
+Covers both ways a row gets a tmdb_id:
+
+  - origin='csv_seed'      linked after the fact by backfill_calendar_tmdb.py,
+                           via a title *search* — the step that could pick the
+                           wrong same-titled result (the King bug).
+  - origin='tmdb_upcoming' written directly by sync_calendar_tmdb.py from one
+                           /discover result object — title, id, and date all
+                           come from the same object, so there is no search
+                           step to get ambiguous. A MISMATCH found here is a
+                           more surprising, different-shaped bug (e.g. the
+                           TMDB id was later merged into another record) than
+                           a MISMATCH found in a csv_seed row, and is worth
+                           reading closely rather than pattern-matching to
+                           the King fix.
+
+This runs in two stages either way, because a big date gap alone is not proof
+of a wrong link:
 
   1. Compare each linked row's own release_date against what TMDB reports for
      the tmdb_id it was linked to. Anything beyond `--threshold-days` (default
@@ -56,9 +71,9 @@ REQUEST_GAP_SECONDS = 0.12
 DEFAULT_THRESHOLD_DAYS = 45
 
 CANDIDATE_SQL = """
-SELECT id, title, release_date, media_type, tmdb_id
+SELECT id, title, release_date, media_type, tmdb_id, origin
 FROM calendar_entries
-WHERE origin = 'csv_seed' AND tmdb_id IS NOT NULL
+WHERE origin IN ('csv_seed', 'tmdb_upcoming') AND tmdb_id IS NOT NULL
 ORDER BY id
 LIMIT %s
 """
@@ -108,14 +123,18 @@ def main() -> int:
             cur.execute(CANDIDATE_SQL, (args.limit,))
             rows = cur.fetchall()
 
-    print(f"{len(rows)} csv_seed rows already linked — checking each against TMDB's real date\n")
+    by_origin = {}
+    for row in rows:
+        by_origin[row[5]] = by_origin.get(row[5], 0) + 1
+    origin_breakdown = ", ".join(f"{count} {origin}" for origin, count in sorted(by_origin.items()))
+    print(f"{len(rows)} rows already linked ({origin_breakdown}) — checking each against TMDB's real date\n")
 
     session = requests.Session()
     suspects = []
     checked = 0
     unavailable = 0
 
-    for row_id, title, release_date, media_type, tmdb_id in rows:
+    for row_id, title, release_date, media_type, tmdb_id, origin in rows:
         path = f"/movie/{tmdb_id}" if media_type == "movie" else f"/tv/{tmdb_id}"
         try:
             payload = tmdb_get(session, path, tmdb_key, {})
@@ -137,7 +156,7 @@ def main() -> int:
 
         diff_days = abs((real_date - release_date).days)
         if diff_days > args.threshold_days:
-            suspects.append((row_id, title, release_date, real_title, real_date, diff_days, tmdb_id, media_type))
+            suspects.append((row_id, title, release_date, real_title, real_date, diff_days, tmdb_id, media_type, origin))
 
     print(f"\nchecked {checked}, {unavailable} unreachable (skipped, not flagged — a network failure is not evidence of a bad link)")
     print(f"\n{len(suspects)} suspect row(s) by date-diff alone. A big gap is not proof of a wrong link on its own —")
@@ -152,41 +171,42 @@ def main() -> int:
     mismatches = []
     unclear = []
 
-    for row_id, title, cal_date, real_title, real_date, diff, tmdb_id, media_type in sorted(suspects, key=lambda s: -s[5]):
+    for row_id, title, cal_date, real_title, real_date, diff, tmdb_id, media_type, origin in sorted(suspects, key=lambda s: -s[5]):
         try:
             rematch = search(session, tmdb_key, media_type, title, cal_date)
         except TmdbUnavailable as err:
-            unclear.append((row_id, title, cal_date, tmdb_id, media_type, real_title, real_date, diff, f"unreachable: {err}"))
+            unclear.append((row_id, title, cal_date, tmdb_id, media_type, origin, real_title, real_date, diff, f"unreachable: {err}"))
             continue
         rate_limit_gap(REQUEST_GAP_SECONDS)
 
         if rematch is None:
-            unclear.append((row_id, title, cal_date, tmdb_id, media_type, real_title, real_date, diff, "matcher found no confident candidate at all"))
+            unclear.append((row_id, title, cal_date, tmdb_id, media_type, origin, real_title, real_date, diff, "matcher found no confident candidate at all"))
         elif rematch["id"] == tmdb_id:
-            confirmed_ok.append((row_id, title, cal_date, tmdb_id, media_type, real_title, real_date, diff))
+            confirmed_ok.append((row_id, title, cal_date, tmdb_id, media_type, origin, real_title, real_date, diff))
         else:
             rematch_title = rematch.get("title") or rematch.get("name") or "?"
-            mismatches.append((row_id, title, cal_date, tmdb_id, media_type, real_title, real_date, diff, rematch["id"], rematch_title, rematch.get("release_date") or rematch.get("first_air_date")))
+            mismatches.append((row_id, title, cal_date, tmdb_id, media_type, origin, real_title, real_date, diff, rematch["id"], rematch_title, rematch.get("release_date") or rematch.get("first_air_date")))
 
     print(f"\n=== {len(confirmed_ok)} corroborated: matcher independently agrees, likely just a release-date lag ===")
-    for row_id, title, cal_date, tmdb_id, media_type, real_title, real_date, diff in confirmed_ok:
-        print(f"  id={row_id:5}  {title!r} ({cal_date}) == {media_type}:{tmdb_id} {real_title!r} ({real_date})  diff={diff}d  [OK, no action]")
+    for row_id, title, cal_date, tmdb_id, media_type, origin, real_title, real_date, diff in confirmed_ok:
+        print(f"  id={row_id:5} [{origin}]  {title!r} ({cal_date}) == {media_type}:{tmdb_id} {real_title!r} ({real_date})  diff={diff}d  [OK, no action]")
 
     print(f"\n=== {len(mismatches)} MISMATCH: matcher would now pick a different title — likely a real wrong link ===")
-    for row_id, title, cal_date, tmdb_id, media_type, real_title, real_date, diff, new_id, new_title, new_date in mismatches:
-        print(f"  id={row_id:5}  calendar: {title!r} ({cal_date})  [{media_type}]")
+    for row_id, title, cal_date, tmdb_id, media_type, origin, real_title, real_date, diff, new_id, new_title, new_date in mismatches:
+        flag = "  <-- surprising for tmdb_upcoming (no search step at creation — look closely)" if origin == "tmdb_upcoming" else ""
+        print(f"  id={row_id:5}  calendar: {title!r} ({cal_date})  [{media_type}, {origin}]{flag}")
         print(f"           currently linked -> tmdb_id={tmdb_id} {real_title!r} ({real_date})  diff={diff}d")
         print(f"           matcher now picks -> tmdb_id={new_id} {new_title!r} ({new_date})")
 
     print(f"\n=== {len(unclear)} unclear: could not get a second opinion ===")
-    for row_id, title, cal_date, tmdb_id, media_type, real_title, real_date, diff, reason in unclear:
-        print(f"  id={row_id:5}  {title!r} ({cal_date})  ->  {tmdb_id} {real_title!r}  diff={diff}d  ({reason})")
+    for row_id, title, cal_date, tmdb_id, media_type, origin, real_title, real_date, diff, reason in unclear:
+        print(f"  id={row_id:5} [{origin}]  {title!r} ({cal_date})  ->  {tmdb_id} {real_title!r}  diff={diff}d  ({reason})")
 
     if mismatches and args.apply:
         print(f"\n--apply passed — relinking all {len(mismatches)} mismatch(es)...")
         with psycopg.connect(dsn) as conn:
             with conn.cursor() as cur:
-                for row_id, title, cal_date, tmdb_id, media_type, real_title, real_date, diff, new_id, new_title, new_date in mismatches:
+                for row_id, title, cal_date, tmdb_id, media_type, origin, real_title, real_date, diff, new_id, new_title, new_date in mismatches:
                     # Re-fetch the poster for the new id — the earlier search()
                     # result already carries it, but recomputing here keeps this
                     # block independent of what search() happened to return.
