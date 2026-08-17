@@ -84,7 +84,11 @@ async function walkMustChain(
   sql: postgres.Sql<any>,
   key: RelationKey,
   hopLimit: number,
+  userId: number | null,
 ): Promise<{ direction: "before" | "after"; row: RelatedTitleDTO }[]> {
+  // `s.user_id = ${userId}` never matches when userId is null (SQL NULL
+  // comparison, not JS falsiness), so NOT EXISTS is unconditionally true for
+  // an anonymous viewer — no per-user filtering applies, without a branch.
   const rows = await sql`
     WITH RECURSIVE chain AS (
       SELECT r.to_media_type, r.to_tmdb_id, r.direction, r.reason, r.source,
@@ -95,6 +99,12 @@ async function walkMustChain(
         AND r.kind            = 'must'
         AND r.suppressed      = false
         AND r.confidence      >= ${MUST_CONFIDENCE_FLOOR}
+        AND NOT EXISTS (
+          SELECT 1 FROM user_relation_suppressions s
+          WHERE s.user_id = ${userId}
+            AND s.from_media_type = r.from_media_type AND s.from_tmdb_id = r.from_tmdb_id
+            AND s.to_media_type   = r.to_media_type   AND s.to_tmdb_id   = r.to_tmdb_id
+        )
 
       UNION ALL
 
@@ -109,6 +119,12 @@ async function walkMustChain(
         AND r.suppressed = false
         AND r.confidence >= ${MUST_CONFIDENCE_FLOOR}
         AND c.hop < ${hopLimit}
+        AND NOT EXISTS (
+          SELECT 1 FROM user_relation_suppressions s
+          WHERE s.user_id = ${userId}
+            AND s.from_media_type = r.from_media_type AND s.from_tmdb_id = r.from_tmdb_id
+            AND s.to_media_type   = r.to_media_type   AND s.to_tmdb_id   = r.to_tmdb_id
+        )
     )
     SELECT DISTINCT ON (to_media_type, to_tmdb_id) *
     FROM chain
@@ -129,16 +145,22 @@ function sortByReleaseDate(items: RelatedTitleDTO[]): RelatedTitleDTO[] {
   });
 }
 
-async function getCanWatch(sql: postgres.Sql<any>, key: RelationKey): Promise<RelatedTitleDTO[]> {
+async function getCanWatch(sql: postgres.Sql<any>, key: RelationKey, userId: number | null): Promise<RelatedTitleDTO[]> {
   const rows = await sql`
     SELECT to_media_type, to_tmdb_id, direction, reason, source, confidence,
            to_title, to_poster_path, to_release_date, 1 AS hop
-    FROM title_relations
+    FROM title_relations r
     WHERE from_media_type = ${key.mediaType}
       AND from_tmdb_id    = ${key.tmdbId}
       AND kind             = 'can'
       AND suppressed       = false
       AND confidence      >= ${CAN_CONFIDENCE_FLOOR}
+      AND NOT EXISTS (
+        SELECT 1 FROM user_relation_suppressions s
+        WHERE s.user_id = ${userId}
+          AND s.from_media_type = r.from_media_type AND s.from_tmdb_id = r.from_tmdb_id
+          AND s.to_media_type   = r.to_media_type   AND s.to_tmdb_id   = r.to_tmdb_id
+      )
     ORDER BY confidence DESC
   `;
   return rows.map(toRelatedTitle);
@@ -170,6 +192,7 @@ export async function getRelations(
   sql: postgres.Sql<any>,
   key: RelationKey,
   depth: number,
+  userId: number | null = null,
 ): Promise<TitleRelationsDTO> {
   const clampedDepth = Math.min(Math.max(Math.trunc(depth) || DEFAULT_DEPTH, 1), MAX_DEPTH);
 
@@ -181,8 +204,8 @@ export async function getRelations(
   // hop, so filtering the deeper walk is equivalent to walking shallower.
   const probeDepth = clampedDepth < MAX_DEPTH ? clampedDepth + 1 : clampedDepth;
   const [walked, canWatch, origin] = await Promise.all([
-    walkMustChain(sql, key, probeDepth),
-    getCanWatch(sql, key),
+    walkMustChain(sql, key, probeDepth, userId),
+    getCanWatch(sql, key, userId),
     getOrigin(sql, key),
   ]);
 
@@ -303,16 +326,22 @@ export async function writeCollectionChain(
   return written;
 }
 
-/** Thumbs-down. `suppressed` is user data — a later regeneration must never
- *  resurrect an edge the owner already rejected. No un-suppress endpoint in
- *  v1; correcting a mistake is a SQL one-liner. */
-export async function suppressRelation(sql: postgres.Sql<any>, from: RelationKey, to: RelationKey): Promise<void> {
+/** Thumbs-down, personal to `userId`. A regeneration must never resurrect an
+ *  edge a user already rejected, but it must also never remove that edge for
+ *  anyone else — this is a per-user filter (see walkMustChain/getCanWatch),
+ *  not a write to the global title_relations row. ON CONFLICT DO NOTHING
+ *  makes re-suppressing the same edge a harmless no-op rather than an error;
+ *  there is no un-suppress endpoint, matching the single edge-correction
+ *  story the design already has (fix it with SQL if it was a mistake). */
+export async function suppressRelation(
+  sql: postgres.Sql<any>,
+  userId: number,
+  from: RelationKey,
+  to: RelationKey,
+): Promise<void> {
   await sql`
-    UPDATE title_relations
-    SET suppressed = true, updated_at = now()
-    WHERE from_media_type = ${from.mediaType}
-      AND from_tmdb_id    = ${from.tmdbId}
-      AND to_media_type   = ${to.mediaType}
-      AND to_tmdb_id      = ${to.tmdbId}
+    INSERT INTO user_relation_suppressions (user_id, from_media_type, from_tmdb_id, to_media_type, to_tmdb_id)
+    VALUES (${userId}, ${from.mediaType}, ${from.tmdbId}, ${to.mediaType}, ${to.tmdbId})
+    ON CONFLICT (user_id, from_media_type, from_tmdb_id, to_media_type, to_tmdb_id) DO NOTHING
   `;
 }

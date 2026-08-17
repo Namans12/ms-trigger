@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { getDb } from "../../lib/db.js";
-import { requireAuth } from "../../lib/auth.js";
+import { requireUserId } from "../../lib/auth.js";
 import {
   getWatchlistState,
   addWatchlistItem,
@@ -37,7 +37,8 @@ function sendJson(res: ServerResponse, status: number, body: unknown) {
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  if (!requireAuth(req, res)) return;
+  const userId = requireUserId(req, res);
+  if (userId === null) return;
 
   const url = new URL(req.url ?? "/", "http://localhost");
   // pathname: /api/watchlist[/reorder|/lists|/lists/:id|/:id]
@@ -49,14 +50,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     // /api/watchlist
     if (segments.length === 0) {
       if (req.method === "GET") {
-        return sendJson(res, 200, await getWatchlistState(sql));
+        return sendJson(res, 200, await getWatchlistState(sql, userId));
       }
       if (req.method === "POST") {
         const body: AddWatchlistItemBody = JSON.parse(await readBody(req));
         if (!body.tmdbId || !body.mediaType || !body.bucket) {
           return sendJson(res, 400, { error: "tmdbId, mediaType, and bucket are required" });
         }
-        return sendJson(res, 201, await addWatchlistItem(sql, body));
+        return sendJson(res, 201, await addWatchlistItem(sql, userId, body));
       }
       return sendJson(res, 405, { error: "method not allowed" });
     }
@@ -68,14 +69,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (!body.bucket || !Array.isArray(body.orderedIds)) {
         return sendJson(res, 400, { error: "bucket and orderedIds are required" });
       }
-      await reorderBucket(sql, body.bucket, body.listId ?? null, body.orderedIds);
+      await reorderBucket(sql, userId, body.bucket, body.listId ?? null, body.orderedIds);
       return sendJson(res, 200, { ok: true });
     }
 
     // /api/watchlist/lists
     if (segments.length === 1 && segments[0] === "lists") {
       if (req.method === "GET") {
-        const rows = await sql`SELECT id, name, created_at FROM custom_lists ORDER BY created_at ASC`;
+        const rows = await sql`SELECT id, name, created_at FROM custom_lists WHERE user_id = ${userId} ORDER BY created_at ASC`;
         return sendJson(
           res,
           200,
@@ -85,7 +86,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (req.method === "POST") {
         const { name } = JSON.parse(await readBody(req));
         if (!name || typeof name !== "string") return sendJson(res, 400, { error: "name is required" });
-        return sendJson(res, 201, await createCustomList(sql, name));
+        return sendJson(res, 201, await createCustomList(sql, userId, name));
       }
       return sendJson(res, 405, { error: "method not allowed" });
     }
@@ -97,12 +98,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (req.method === "PATCH") {
         const { name } = JSON.parse(await readBody(req));
         if (!name || typeof name !== "string") return sendJson(res, 400, { error: "name is required" });
-        const list = await renameCustomList(sql, listId, name);
+        const list = await renameCustomList(sql, userId, listId, name);
         if (!list) return sendJson(res, 404, { error: "not found" });
         return sendJson(res, 200, list);
       }
       if (req.method === "DELETE") {
-        await deleteCustomList(sql, listId);
+        await deleteCustomList(sql, userId, listId);
         return sendJson(res, 204, undefined);
       }
       return sendJson(res, 405, { error: "method not allowed" });
@@ -115,12 +116,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (req.method === "PATCH") {
         const body: { bucket: Bucket; listId?: number } = JSON.parse(await readBody(req));
         if (!body.bucket) return sendJson(res, 400, { error: "bucket is required" });
-        const item = await moveWatchlistItem(sql, dbId, body.bucket, body.listId ?? null);
+        const item = await moveWatchlistItem(sql, userId, dbId, body.bucket, body.listId ?? null);
         if (!item) return sendJson(res, 404, { error: "not found" });
         return sendJson(res, 200, item);
       }
       if (req.method === "DELETE") {
-        await removeWatchlistItem(sql, dbId);
+        await removeWatchlistItem(sql, userId, dbId);
         return sendJson(res, 204, undefined);
       }
       return sendJson(res, 405, { error: "method not allowed" });

@@ -1,0 +1,53 @@
+import type postgres from "postgres";
+
+// Read/write layer for `users` (migrations/0007_multi_user_accounts.sql).
+// One row per Google account; every other per-user table (watchlist_items,
+// custom_lists, user_relation_suppressions, refresh_dispatches) hangs off
+// users.id via ON DELETE CASCADE.
+
+export interface UserDTO {
+  id: number;
+  email: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+function toUserDTO(row: any): UserDTO {
+  return {
+    id: Number(row.id),
+    email: row.email,
+    displayName: row.display_name,
+    avatarUrl: row.avatar_url ?? null,
+  };
+}
+
+export interface GoogleProfile {
+  googleId: string;
+  email: string;
+  name: string;
+  picture: string | null;
+}
+
+/** Creates the user on first sign-in, or refreshes their profile fields on
+ *  every subsequent one — a changed Google display name or photo reaches this
+ *  row without a separate sync job, since sign-in already happens constantly. */
+export async function upsertUserFromGoogle(sql: postgres.Sql<any>, profile: GoogleProfile): Promise<UserDTO> {
+  const [row] = await sql`
+    INSERT INTO users (google_id, email, display_name, avatar_url)
+    VALUES (${profile.googleId}, ${profile.email}, ${profile.name}, ${profile.picture})
+    ON CONFLICT (google_id) DO UPDATE SET
+      email        = EXCLUDED.email,
+      display_name = EXCLUDED.display_name,
+      avatar_url   = EXCLUDED.avatar_url,
+      updated_at   = now()
+    RETURNING id, email, display_name, avatar_url
+  `;
+  return toUserDTO(row);
+}
+
+/** Looks up the user a session cookie names. Null if the account was deleted
+ *  out from under a still-valid cookie signature. */
+export async function getUserById(sql: postgres.Sql<any>, id: number): Promise<UserDTO | null> {
+  const [row] = await sql`SELECT id, email, display_name, avatar_url FROM users WHERE id = ${id}`;
+  return row ? toUserDTO(row) : null;
+}

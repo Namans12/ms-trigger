@@ -92,7 +92,7 @@ export function useWatchlist() {
    * rather than firing it and swallowing the 401. */
   function requireLogin(): boolean {
     if (isAuthenticated) return true;
-    toast.error('Log in to use your list', { description: 'Open My List to enter your passphrase.' });
+    toast.error('Log in to use your list', { description: 'Sign in with Google to save titles.' });
     return false;
   }
 

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { toast } from 'sonner';
 import { SpotlightWordmark } from '@/components/brand/SpotlightLogo';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Compass, CalendarDays, List, Home as HomeIcon, Eye, RefreshCw } from 'lucide-react';
+import { Search, Compass, CalendarDays, List, Home as HomeIcon, Eye, RefreshCw, LogOut } from 'lucide-react';
 
 const NAV_LINKS = [
   { to: '/', label: 'Home', icon: <HomeIcon size={16} /> },
@@ -12,6 +12,58 @@ const NAV_LINKS = [
   { to: '/browse', label: 'Browse', icon: <Compass size={16} /> },
   { to: '/search', label: 'Search', icon: <Search size={16} /> },
 ];
+
+function UserMenu() {
+  const { user, logout } = useAuth();
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  if (!user) return null;
+  const initial = user.displayName.trim().charAt(0).toUpperCase() || '?';
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Account menu"
+        className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-accent/20 text-accent flex items-center justify-center text-xs font-bold ring-1 ring-border hover:ring-accent/40 transition-all"
+      >
+        {user.avatarUrl ? (
+          <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+        ) : (
+          initial
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-52 rounded-xl bg-card border border-border shadow-lg py-1.5 z-50">
+          <div className="px-3 py-2 border-b border-border">
+            <p className="text-xs font-semibold text-foreground truncate">{user.displayName}</p>
+            <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
+          </div>
+          <button
+            onClick={() => {
+              setOpen(false);
+              logout.mutate();
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          >
+            <LogOut size={13} /> Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Topbar() {
   const wl = useWatchlistContext();
@@ -68,6 +120,16 @@ export function Topbar() {
           >
             My List
           </NavLink>
+          {isAuthenticated ? (
+            <UserMenu />
+          ) : (
+            <NavLink
+              to="/login"
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold leading-none bg-accent text-accent-foreground hover:brightness-110 transition-all"
+            >
+              Sign in
+            </NavLink>
+          )}
         </div>
       </div>
 

@@ -20,7 +20,7 @@ Both parts are split into three sections, grouped by streaming platform:
 - 🌍 **English OTT** — movies + shows
 - 🔥 **Popular (Other Languages)** — any-language releases above a popularity threshold (big Tamil / Telugu / Korean / Spanish titles surface automatically)
 
-Plus, on the site itself: Browse (trending/popular rows), Search (full TMDB multi-search), and a private **My List** section (watchlist, watch later, watched, custom lists) synced to Postgres behind a passphrase.
+Plus, on the site itself: Browse (trending/popular rows), Search (full TMDB multi-search), and a **My List** section (watchlist, watch later, watched, custom lists) — private per Google account, synced to Postgres.
 
 ## Architecture
 
@@ -32,7 +32,7 @@ Plus, on the site itself: Browse (trending/popular rows), Search (full TMDB mult
 | `src/` | The React + Vite + Tailwind SPA (this is what's served at your domain). |
 | Telegram + Email | Delivery channels, sent by the same GitHub Action that refreshes Postgres. |
 
-The public site (Home, Browse, Search, Calendar) needs no login. The private **My List** section is gated behind a single owner passphrase.
+The public site (Home, Browse, Search, Calendar) needs no login and is the same for everyone — releases, the calendar, ratings, and title relations are shared catalog data. The **My List** section requires Google sign-in; each account's watchlist, custom lists, and relation thumbs-downs are private to that account (see [Accounts](#accounts--google-sign-in)).
 
 ## What It Uses
 
@@ -88,7 +88,7 @@ Using your own Gmail (or any account) as the sender needs an **app password**, n
 
 1. Create a free project at https://neon.tech (pick a region close to your Vercel deployment region).
 2. Copy the pooled connection string.
-3. Run the migrations once, in order: `0001_init.sql`, `0002_title_ratings.sql`, `0003_title_relations.sql`, `0004_title_relations_reverse_index.sql`, `0005_title_relation_lookups.sql`, `0006_calendar_entries_poster.sql` — e.g. `psql "$DATABASE_URL" -f migrations/0001_init.sql` for each (or via a Python one-liner with `psycopg` if you don't have `psql` installed).
+3. Run the migrations once, in order: `0001_init.sql`, `0002_title_ratings.sql`, `0003_title_relations.sql`, `0004_title_relations_reverse_index.sql`, `0005_title_relation_lookups.sql`, `0006_calendar_entries_poster.sql`, `0007_multi_user_accounts.sql` — e.g. `psql "$DATABASE_URL" -f migrations/0001_init.sql` for each (or via a Python one-liner with `psycopg` if you don't have `psql` installed).
 4. Link the seeded calendar rows to TMDB so they get posters and become clickable: `python scripts/backfill_calendar_tmdb.py` (safe to re-run; it only touches rows still missing a `tmdb_id`).
 5. Keep the calendar populated past the seeded window: `python scripts/sync_calendar_tmdb.py --months 6`. Pulls region-aware theatrical dates (`/discover/movie` with `region` + `with_release_type=2|3` + `release_date.gte/lte` — not `primary_release_date.*`, which ignores `region` entirely and returns global junk) and TV premieres, and only ever *enriches* existing rows — a curated editorial row keeps its own platform and details and merely gains a poster and a `tmdb_id`. Queries one calendar month at a time rather than the whole window at once — TMDB caps each `/discover` call at a fixed page limit regardless of true match count, so a single big-range query lets a handful of popular titles anywhere in it crowd out an entire other month's releases before the cap even applies (confirmed directly: a 6-month single-query window had 178 real matches behind a 60-result cap, silently dropping 118). TV premieres are additionally scoped by `--tv-countries` (default `IN,US,GB`) — TMDB is crowdsourced and global TV volume runs into the hundreds a month, almost all obscure local productions; this trades missing an occasional big non-English hit for not drowning the calendar in noise. Runs nightly (see below).
 4. Optionally seed the editorial calendar: `python scripts/seed_calendar_csv.py`.
@@ -110,8 +110,8 @@ Using your own Gmail (or any account) as the sender needs an **app password**, n
 | `SMTP_PASSWORD` | 16-char Gmail app password (step 4) |
 | `EMAIL_FROM` | Sender address, usually same as `SMTP_USERNAME` |
 | `EMAIL_TO` | Where you want the digest delivered |
-| `AUTH_SECRET` | Random HMAC signing key for the owner-passphrase cookie: `openssl rand -hex 32` |
-| `OWNER_PASSPHRASE` | The passphrase that unlocks My List |
+| `AUTH_SECRET` | Random HMAC signing key for the session cookie: `openssl rand -hex 32` |
+| `GOOGLE_CLIENT_ID` | OAuth Client ID from Google Cloud Console (see [Accounts](#accounts--google-sign-in)) — not a secret, but convenient to manage alongside the others |
 
 And one repo **variable** (not secret) under the same page's "Variables" tab:
 
@@ -123,7 +123,7 @@ And one repo **variable** (not secret) under the same page's "Variables" tab:
 
 1. Go to https://vercel.com → sign in with GitHub → **Add New… → Project** → import this repo.
 2. Framework preset: **Other** (not "Python" — this project is a Vite SPA + TS/Python functions, not a Python web framework).
-3. Under **Environment Variables**, add: `TMDB_API_KEY`, `DATABASE_URL`, `AUTH_SECRET`, `OWNER_PASSPHRASE`, and optionally `OMDB_API_KEY`.
+3. Under **Environment Variables**, add: `TMDB_API_KEY`, `DATABASE_URL`, `AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `VITE_GOOGLE_CLIENT_ID` (same value — the `VITE_` copy is what reaches the browser bundle; see [Accounts](#accounts--google-sign-in)), and optionally `OMDB_API_KEY`.
 4. Deploy. Every push to `main` auto-redeploys.
 
 ### 8. Done
@@ -148,6 +148,37 @@ And one repo **variable** (not secret) under the same page's "Variables" tab:
 | `EMAIL_ENABLED` | `false` | Toggle email delivery |
 | `OMDB_API_KEY` | — | OMDb key for IMDb/RT scores. Unset = no ratings anywhere, silently |
 | `RATINGS_MAX_CALLS` | `400` | OMDb requests one `scripts/backfill_ratings.py` run may spend |
+
+## Accounts & Google Sign-In
+
+The catalog (releases, calendar, ratings, title relations) is global — every
+signed-in or anonymous visitor reads the same data. Only two things are
+private per account: **My List** (watchlist, watch later, watched, custom
+lists) and thumbs-downing a relation edge (hiding a wrong "Must Watch" link
+for yourself doesn't remove it for anyone else — see
+[Must Watch / Can Watch](#must-watch--can-watch-title-relations)).
+
+Sign-in uses [Google Identity Services](https://developers.google.com/identity/gsi/web),
+not a server-side OAuth redirect: the frontend gets a signed ID token
+straight from Google, and the backend verifies it against Google's public
+keys (`lib/auth.ts`, via `google-auth-library`). No client secret is
+involved anywhere — that's only needed for the authorization-code flow,
+which this isn't.
+
+**Setup:**
+
+1. [console.cloud.google.com](https://console.cloud.google.com) → new project → **APIs & Services → OAuth consent screen** (External, your app name + email).
+2. **APIs & Services → Credentials → Create Credentials → OAuth client ID**, type **Web application**.
+3. Authorized JavaScript origins: your deployed URL, plus `http://localhost:8080` for local dev.
+4. Copy the Client ID and set it as **both** `GOOGLE_CLIENT_ID` (server-side verification) and `VITE_GOOGLE_CLIENT_ID` (same value — Vite only exposes `VITE_`-prefixed vars to the browser bundle, and the login button needs the id to render). It's the same, non-secret string in both places.
+
+Every mutating watchlist/list query is scoped by `user_id` — including
+writes, not just reads, since `dbId` is a small sequential integer and would
+otherwise let one signed-in user edit another's rows just by guessing an id
+(see `lib/watchlistDb.ts`). `api/releases-refresh` is rate-limited per
+`migrations/0007_multi_user_accounts.sql`'s `refresh_dispatches` table: a
+15-minute global cooldown (the pipeline is shared) plus a 5-per-day-per-user
+quota, so one person can't monopolise the shared cooldown slots.
 
 ## Ratings (IMDb / Rotten Tomatoes)
 

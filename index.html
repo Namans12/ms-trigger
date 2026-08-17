@@ -12,6 +12,11 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Google Identity Services: renders the "Continue with Google" button
+         and hands the frontend a signed ID token — no OAuth redirect dance,
+         no client secret. Loaded globally since GoogleSignIn is lazy-loaded
+         behind the /login route and the script needs a head start. -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
     <div id="root"></div>

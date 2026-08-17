@@ -7,6 +7,15 @@ import type {
   Bucket,
 } from "../shared/types/watchlist.js";
 
+// Every query here is scoped to one signed-in user's rows. That scoping is
+// deliberately on every write, not just the reads: dbId (BIGSERIAL) is a
+// small, sequential, trivially-guessable integer, so a mutation that only
+// checked `WHERE id = $dbId` — without also requiring `user_id = $userId` —
+// would let any signed-in user edit or delete any OTHER user's watchlist item
+// just by incrementing a number. This is the single most important property
+// of this file post-multi-user; every function signature below carries
+// userId specifically so that property can't quietly regress.
+
 function toItemDTO(row: any): WatchlistItemDTO {
   return {
     dbId: Number(row.id),
@@ -29,9 +38,9 @@ function toListDTO(row: any): CustomListDTO {
   return { id: Number(row.id), name: row.name, createdAt: new Date(row.created_at).getTime() };
 }
 
-export async function getWatchlistState(sql: postgres.Sql<any>): Promise<WatchlistStateDTO> {
-  const rows = await sql`SELECT * FROM watchlist_items ORDER BY sort_order ASC`;
-  const listRows = await sql`SELECT * FROM custom_lists ORDER BY created_at ASC`;
+export async function getWatchlistState(sql: postgres.Sql<any>, userId: number): Promise<WatchlistStateDTO> {
+  const rows = await sql`SELECT * FROM watchlist_items WHERE user_id = ${userId} ORDER BY sort_order ASC`;
+  const listRows = await sql`SELECT * FROM custom_lists WHERE user_id = ${userId} ORDER BY created_at ASC`;
 
   const state: WatchlistStateDTO = {
     watchlist: [],
@@ -56,25 +65,31 @@ export async function getWatchlistState(sql: postgres.Sql<any>): Promise<Watchli
 }
 
 /** Purge-then-insert: removes any existing placement of this title across ALL
- * buckets (mirrors the old client-side purgeFromAll — one active placement
- * per title), then inserts the new row at the end of its target bucket. */
-export async function addWatchlistItem(sql: postgres.Sql<any>, body: AddWatchlistItemBody): Promise<WatchlistItemDTO> {
+ * of THIS USER's buckets (mirrors the old client-side purgeFromAll — one
+ * active placement per title, per user), then inserts the new row at the end
+ * of its target bucket. The purge is user-scoped — without that, adding a
+ * film to your own watchlist would delete it from every other user's. */
+export async function addWatchlistItem(
+  sql: postgres.Sql<any>,
+  userId: number,
+  body: AddWatchlistItemBody,
+): Promise<WatchlistItemDTO> {
   return sql.begin(async (tx) => {
-    await tx`DELETE FROM watchlist_items WHERE tmdb_id = ${body.tmdbId} AND media_type = ${body.mediaType}`;
+    await tx`DELETE FROM watchlist_items WHERE user_id = ${userId} AND tmdb_id = ${body.tmdbId} AND media_type = ${body.mediaType}`;
 
     const listId = body.bucket === "custom" ? body.listId ?? null : null;
     const [{ next_order }] = await tx`
       SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_order
       FROM watchlist_items
-      WHERE bucket = ${body.bucket} AND list_id IS NOT DISTINCT FROM ${listId}
+      WHERE user_id = ${userId} AND bucket = ${body.bucket} AND list_id IS NOT DISTINCT FROM ${listId}
     `;
 
     const [row] = await tx`
       INSERT INTO watchlist_items
-        (tmdb_id, media_type, title, poster_path, backdrop_path, overview, release_date,
+        (user_id, tmdb_id, media_type, title, poster_path, backdrop_path, overview, release_date,
          vote_average, original_language, bucket, list_id, sort_order)
       VALUES (
-        ${body.tmdbId}, ${body.mediaType}, ${body.title}, ${body.posterPath}, ${body.backdropPath ?? null},
+        ${userId}, ${body.tmdbId}, ${body.mediaType}, ${body.title}, ${body.posterPath}, ${body.backdropPath ?? null},
         ${body.overview}, ${body.releaseDate}, ${body.voteAverage}, ${body.originalLanguage},
         ${body.bucket}, ${listId}, ${next_order}
       )
@@ -86,46 +101,49 @@ export async function addWatchlistItem(sql: postgres.Sql<any>, body: AddWatchlis
 
 export async function moveWatchlistItem(
   sql: postgres.Sql<any>,
+  userId: number,
   dbId: number,
   bucket: Bucket,
   listId: number | null,
 ): Promise<WatchlistItemDTO | null> {
   return sql.begin(async (tx) => {
-    const existing = await tx`SELECT tmdb_id, media_type FROM watchlist_items WHERE id = ${dbId}`;
+    const existing = await tx`SELECT tmdb_id, media_type FROM watchlist_items WHERE id = ${dbId} AND user_id = ${userId}`;
     if (existing.length === 0) return null;
     const { tmdb_id, media_type } = existing[0];
 
     // Moving to a standard bucket must still respect "one active placement per
-    // title" — purge any OTHER row for this title first (e.g. it could exist
-    // in a custom list simultaneously; moving to watchlist should replace that).
+    // title, per user" — purge any OTHER row of this user's for this title
+    // first (e.g. it could exist in a custom list simultaneously; moving to
+    // watchlist should replace that).
     await tx`
       DELETE FROM watchlist_items
-      WHERE tmdb_id = ${tmdb_id} AND media_type = ${media_type} AND id != ${dbId}
+      WHERE user_id = ${userId} AND tmdb_id = ${tmdb_id} AND media_type = ${media_type} AND id != ${dbId}
     `;
 
     const [{ next_order }] = await tx`
       SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_order
       FROM watchlist_items
-      WHERE bucket = ${bucket} AND list_id IS NOT DISTINCT FROM ${listId} AND id != ${dbId}
+      WHERE user_id = ${userId} AND bucket = ${bucket} AND list_id IS NOT DISTINCT FROM ${listId} AND id != ${dbId}
     `;
 
     const [row] = await tx`
       UPDATE watchlist_items
       SET bucket = ${bucket}, list_id = ${listId}, sort_order = ${next_order}, added_at = now()
-      WHERE id = ${dbId}
+      WHERE id = ${dbId} AND user_id = ${userId}
       RETURNING *
     `;
     return row ? toItemDTO(row) : null;
   });
 }
 
-export async function removeWatchlistItem(sql: postgres.Sql<any>, dbId: number): Promise<void> {
-  await sql`DELETE FROM watchlist_items WHERE id = ${dbId}`;
+export async function removeWatchlistItem(sql: postgres.Sql<any>, userId: number, dbId: number): Promise<void> {
+  await sql`DELETE FROM watchlist_items WHERE id = ${dbId} AND user_id = ${userId}`;
 }
 
 /** Rewrites sort_order for every item in a bucket to match the given order. */
 export async function reorderBucket(
   sql: postgres.Sql<any>,
+  userId: number,
   bucket: Bucket,
   listId: number | null,
   orderedIds: number[],
@@ -135,23 +153,28 @@ export async function reorderBucket(
       await tx`
         UPDATE watchlist_items
         SET sort_order = ${i}
-        WHERE id = ${orderedIds[i]} AND bucket = ${bucket} AND list_id IS NOT DISTINCT FROM ${listId}
+        WHERE id = ${orderedIds[i]} AND user_id = ${userId} AND bucket = ${bucket} AND list_id IS NOT DISTINCT FROM ${listId}
       `;
     }
   });
 }
 
-export async function createCustomList(sql: postgres.Sql<any>, name: string): Promise<CustomListDTO> {
-  const [row] = await sql`INSERT INTO custom_lists (name) VALUES (${name}) RETURNING *`;
+export async function createCustomList(sql: postgres.Sql<any>, userId: number, name: string): Promise<CustomListDTO> {
+  const [row] = await sql`INSERT INTO custom_lists (user_id, name) VALUES (${userId}, ${name}) RETURNING *`;
   return toListDTO(row);
 }
 
-export async function renameCustomList(sql: postgres.Sql<any>, id: number, name: string): Promise<CustomListDTO | null> {
-  const [row] = await sql`UPDATE custom_lists SET name = ${name} WHERE id = ${id} RETURNING *`;
+export async function renameCustomList(
+  sql: postgres.Sql<any>,
+  userId: number,
+  id: number,
+  name: string,
+): Promise<CustomListDTO | null> {
+  const [row] = await sql`UPDATE custom_lists SET name = ${name} WHERE id = ${id} AND user_id = ${userId} RETURNING *`;
   return row ? toListDTO(row) : null;
 }
 
-export async function deleteCustomList(sql: postgres.Sql<any>, id: number): Promise<void> {
+export async function deleteCustomList(sql: postgres.Sql<any>, userId: number, id: number): Promise<void> {
   // ON DELETE CASCADE on watchlist_items.list_id handles orphaned items.
-  await sql`DELETE FROM custom_lists WHERE id = ${id}`;
+  await sql`DELETE FROM custom_lists WHERE id = ${id} AND user_id = ${userId}`;
 }

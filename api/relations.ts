@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { getDb } from "../lib/db.js";
-import { requireAuth } from "../lib/auth.js";
+import { requireUserId, getSessionUserId } from "../lib/auth.js";
 import { isRateLimited } from "../lib/rateLimit.js";
 import {
   getRelations,
@@ -15,15 +15,18 @@ import {
 } from "../lib/relationsDb.js";
 import { tmdbCollectionParts } from "../lib/tmdbProxy.js";
 
-// Must Watch / Can Watch relations for a title (migrations/0003_title_relations.sql).
+// Must Watch / Can Watch relations for a title (migrations/0003_title_relations.sql,
+// migrations/0007_multi_user_accounts.sql).
 //
 //   GET  /api/relations?type=movie&id=693134&depth=1     public, read-only
-//   POST /api/relations  { from, to, action: "suppress" } owner-only, 204
+//   POST /api/relations  { from, to, action: "suppress" } any signed-in user, 204
 //
-// Suppression is the only way to correct a structured edge: the upsert
-// precedence ladder means a lower-trust generator can never overwrite a
-// higher-trust one, so a wrong 'tmdb' edge is fixed by thumbing it down, not
-// by regenerating. `suppressed` is user data and no generator ever clears it.
+// Suppression is per-user (user_relation_suppressions), not a write to
+// title_relations — one person hiding a wrong "Must Watch" link must not
+// remove it for everyone else. It's still the only way to correct a
+// structured edge for yourself: the upsert precedence ladder means a
+// lower-trust generator can never overwrite a higher-trust one, so a wrong
+// 'tmdb' edge is fixed by thumbing it down, not by regenerating.
 //
 // GET is decorative, same posture as ratings: Postgres down, table missing,
 // malformed row — it answers 200 with empty arrays, never an error, because a
@@ -71,8 +74,10 @@ function parseKey(raw: unknown): RelationKey | null {
 }
 
 async function handleSuppress(req: IncomingMessage, res: ServerResponse) {
-  // Owner-only, and checked before anything is read or parsed.
-  if (!requireAuth(req, res)) return;
+  // Any signed-in user may suppress an edge — for themselves only, checked
+  // before anything is read or parsed.
+  const userId = requireUserId(req, res);
+  if (userId === null) return;
 
   let body: Record<string, unknown>;
   try {
@@ -91,7 +96,7 @@ async function handleSuppress(req: IncomingMessage, res: ServerResponse) {
   }
 
   try {
-    await suppressRelation(getDb(), from, to);
+    await suppressRelation(getDb(), userId, from, to);
   } catch (err) {
     console.error("[relations] suppress failed", err);
     // Unlike GET, a failed write is reported: silently swallowing it would let
@@ -165,12 +170,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   if (isRateLimited(req)) return sendJson(res, 200, EMPTY_RELATIONS, CACHE_CONTROL);
 
   const key: RelationKey = { tmdbId, mediaType };
+  const userId = getSessionUserId(req);
   try {
     const sql = getDb();
-    let relations = await getRelations(sql, key, depth);
+    let relations = await getRelations(sql, key, depth, userId);
 
     const warmed = await warmFromCollection(sql, key, relations);
-    if (warmed) relations = await getRelations(sql, key, depth);
+    if (warmed) relations = await getRelations(sql, key, depth, userId);
 
     return sendJson(res, 200, relations, CACHE_CONTROL);
   } catch (err) {

@@ -67,7 +67,7 @@ function warnOnceIfMissing(name) {
     console.warn(`[dev-api] ${name} is not set — endpoints that need it will respond with an error or empty data.`);
   }
 }
-["DATABASE_URL", "TMDB_API_KEY", "OMDB_API_KEY", "AUTH_SECRET", "OWNER_PASSPHRASE"].forEach(warnOnceIfMissing);
+["DATABASE_URL", "TMDB_API_KEY", "OMDB_API_KEY", "AUTH_SECRET", "GOOGLE_CLIENT_ID"].forEach(warnOnceIfMissing);
 
 const server = http.createServer(async (req, res) => {
   const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
