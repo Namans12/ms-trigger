@@ -1,30 +1,24 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { getDb } from "../../lib/db.js";
 import { requireUserId } from "../../lib/auth.js";
-import {
-  getWatchlistState,
-  addWatchlistItem,
-  moveWatchlistItem,
-  removeWatchlistItem,
-  reorderBucket,
-  createCustomList,
-  renameCustomList,
-  deleteCustomList,
-} from "../../lib/watchlistDb.js";
+import { getWatchlistState, addWatchlistItem, reorderBucket, createCustomList } from "../../lib/watchlistDb.js";
 import type { AddWatchlistItemBody, Bucket } from "../../shared/types/watchlist.js";
 
-// Single catch-all for every /api/watchlist/* route (Vercel Hobby caps a
-// deployment at 12 serverless functions, so the item CRUD, reorder, and
-// custom-list CRUD all share this one function instead of five separate files).
+// Catch-all for the FLAT /api/watchlist/* routes (state, items, reorder,
+// lists) — Vercel Hobby caps a deployment at 12 serverless functions, so these
+// share one function instead of four separate files.
 //
-// Every route lives on a sub-path (/state, /items, /reorder, /lists) on
-// purpose: a catch-all only matches paths that *have* a segment after
-// /api/watchlist, so bare /api/watchlist never reaches this function at all —
-// it 404s in Vercel's router before any code runs. Optional catch-all naming
-// ([[...path]]) is a Next.js convention, not something the plain /api
-// file-system routing honours, so the earlier attempt to cover the bare path
-// that way still 404'd in production. api/tmdb/[...path].ts is sub-path-only
-// for the same reason and has always worked.
+// /items/:id and /lists/:id are deliberately NOT here — see
+// api/watchlist/items/[id].ts. This catch-all's route pattern only ever
+// matches a single path segment on this deployment (confirmed via
+// X-Vercel-Id: a request for a 2-segment path never leaves the edge region,
+// so Vercel itself never invokes this function for it — not a bug in the code
+// below). Every route two segments deep needs its own single-bracket dynamic
+// file instead.
+//
+// Bare /api/watchlist (no segment at all) also 404s before this function ever
+// runs, which is why every route here lives on a named sub-path rather than
+// the catch-all's own root.
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -97,42 +91,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         const { name } = JSON.parse(await readBody(req));
         if (!name || typeof name !== "string") return sendJson(res, 400, { error: "name is required" });
         return sendJson(res, 201, await createCustomList(sql, userId, name));
-      }
-      return sendJson(res, 405, { error: "method not allowed" });
-    }
-
-    // /api/watchlist/lists/:id
-    if (segments.length === 2 && segments[0] === "lists") {
-      const listId = Number(segments[1]);
-      if (!Number.isFinite(listId)) return sendJson(res, 400, { error: "invalid id" });
-      if (req.method === "PATCH") {
-        const { name } = JSON.parse(await readBody(req));
-        if (!name || typeof name !== "string") return sendJson(res, 400, { error: "name is required" });
-        const list = await renameCustomList(sql, userId, listId, name);
-        if (!list) return sendJson(res, 404, { error: "not found" });
-        return sendJson(res, 200, list);
-      }
-      if (req.method === "DELETE") {
-        await deleteCustomList(sql, userId, listId);
-        return sendJson(res, 204, undefined);
-      }
-      return sendJson(res, 405, { error: "method not allowed" });
-    }
-
-    // /api/watchlist/items/:id
-    if (segments.length === 2 && segments[0] === "items") {
-      const dbId = Number(segments[1]);
-      if (!Number.isFinite(dbId)) return sendJson(res, 400, { error: "invalid id" });
-      if (req.method === "PATCH") {
-        const body: { bucket: Bucket; listId?: number } = JSON.parse(await readBody(req));
-        if (!body.bucket) return sendJson(res, 400, { error: "bucket is required" });
-        const item = await moveWatchlistItem(sql, userId, dbId, body.bucket, body.listId ?? null);
-        if (!item) return sendJson(res, 404, { error: "not found" });
-        return sendJson(res, 200, item);
-      }
-      if (req.method === "DELETE") {
-        await removeWatchlistItem(sql, userId, dbId);
-        return sendJson(res, 204, undefined);
       }
       return sendJson(res, 405, { error: "method not allowed" });
     }

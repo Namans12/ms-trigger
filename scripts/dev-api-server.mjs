@@ -42,10 +42,20 @@ function resolveHandlerFile(pathname) {
   if (pathname === "/api/releases-refresh") return "api/releases-refresh.ts";
   if (pathname === "/api/ratings") return "api/ratings.ts";
   if (pathname === "/api/relations") return "api/relations.ts";
+  // More specific files win over a catch-all one level up — same precedence
+  // Vercel's real filesystem router applies. Getting this wrong here once
+  // already hid a production bug: this file used to route every
+  // /api/watchlist/* path to the catch-all regardless of depth, which matched
+  // dev-api-server's own (too permissive) matching rather than what Vercel
+  // actually does, so a route that only worked because of that mismatch
+  // shipped broken.
+  if (/^\/api\/watchlist\/items\/[^/]+$/.test(pathname)) return "api/watchlist/items/[id].ts";
+  if (/^\/api\/watchlist\/lists\/[^/]+$/.test(pathname)) return "api/watchlist/lists/[id].ts";
+
   // The two catch-alls are sub-path-only on purpose: Vercel's router never
   // matches a catch-all against its own bare parent path, so serving
   // /api/tmdb or /api/watchlist here would hide a production 404 in dev —
-  // which is exactly how the watchlist shipped broken.
+  // which is exactly how the watchlist shipped broken the first time.
   if (pathname.startsWith("/api/tmdb/")) return "api/tmdb/[...path].ts";
   if (pathname.startsWith("/api/watchlist/")) return "api/watchlist/[...path].ts";
   return null;
