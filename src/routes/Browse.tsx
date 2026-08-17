@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { getTrending, getPopularMovies, getPopularTV, IMG_BACKDROP } from '@/lib/tmdb';
 import { ActionButton } from '@/components/watchlist/ActionButton';
 import { PosterCard } from '@/components/release/PosterCard';
@@ -63,7 +64,11 @@ export default function Browse() {
                 <Flame size={12} className="shrink-0" /> Trending Now
               </span>
             </div>
-            <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-semibold text-foreground leading-tight">{heroMovie.title}</h2>
+            <Link to={`/title/${heroMovie.mediaType}/${heroMovie.id}`}>
+              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-semibold text-foreground leading-tight hover:underline">
+                {heroMovie.title}
+              </h2>
+            </Link>
             <p className="text-xs text-foreground/80 mt-1.5 line-clamp-2 max-w-lg">{heroMovie.overview}</p>
             <div className="flex items-center gap-2 mt-3">
               <ActionButton
@@ -109,6 +114,7 @@ export default function Browse() {
               <PosterCard
                 key={movie.id}
                 item={fromMovie(movie)}
+                linkTo={`/title/${movie.mediaType}/${movie.id}`}
                 className="flex-shrink-0 w-[130px] sm:w-[150px]"
                 onAddToWatchlist={() => wl.addToWatchlist(movie)}
                 onAddToWatchLater={() => wl.addToWatchLater(movie)}
@@ -129,6 +135,7 @@ export default function Browse() {
               <PosterCard
                 key={movie.id}
                 item={fromMovie(movie)}
+                linkTo={`/title/${movie.mediaType}/${movie.id}`}
                 className="flex-shrink-0 w-[130px] sm:w-[150px]"
                 onAddToWatchlist={() => wl.addToWatchlist(movie)}
                 onAddToWatchLater={() => wl.addToWatchLater(movie)}
@@ -149,6 +156,7 @@ export default function Browse() {
               <PosterCard
                 key={movie.id}
                 item={fromMovie(movie)}
+                linkTo={`/title/${movie.mediaType}/${movie.id}`}
                 className="flex-shrink-0 w-[130px] sm:w-[150px]"
                 onAddToWatchlist={() => wl.addToWatchlist(movie)}
                 onAddToWatchLater={() => wl.addToWatchLater(movie)}

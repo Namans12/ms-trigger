@@ -57,13 +57,11 @@ export function ReleaseCard({
           >
             {item.mediaType === "tv" ? "TV" : "Film"}
           </span>
-          {item.rating ? (
+          {item.rating != null && item.rating > 0 && (
             <span className="inline-flex items-center gap-0.5 text-[11px] text-gold leading-none">
               <Star size={10} fill="currentColor" className="shrink-0" />
               {item.rating.toFixed(1)}
             </span>
-          ) : (
-            <span className="text-[11px] text-muted-foreground">No rating yet</span>
           )}
         </div>
         {providers && <p className="text-[11px] text-accent font-medium">{providers}</p>}

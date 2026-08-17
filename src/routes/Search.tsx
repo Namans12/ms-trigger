@@ -84,6 +84,7 @@ export default function Search() {
           <PosterCard
             key={movie.id}
             item={fromMovie(movie)}
+            linkTo={`/title/${movie.mediaType}/${movie.id}`}
             onAddToWatchlist={() => wl.addToWatchlist(movie)}
             onAddToWatchLater={() => wl.addToWatchLater(movie)}
           />
