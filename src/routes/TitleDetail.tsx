@@ -32,7 +32,11 @@ export default function TitleDetail() {
   const tmdbId = Number(id);
   const { isAuthenticated } = useAuth();
   const wl = useWatchlistContext();
-  const [showRecommendations, setShowRecommendations] = useState(false);
+  // Visible by default — every other surface (Home, Browse, Search) shows its
+  // recommendation rows without an extra click, so hiding this one behind a
+  // toggle read as broken rather than collapsed. The toggle still exists for
+  // anyone who'd rather close it.
+  const [showRecommendations, setShowRecommendations] = useState(true);
 
   // Depth 1 is all this page needs: it only asks "is there anything to go and
   // look at". The connections view does the real walk at MAX_DEPTH.
@@ -51,8 +55,7 @@ export default function TitleDetail() {
   const recommendationsQuery = useQuery({
     queryKey: ['tmdb', 'you-may-also-like', mediaType, tmdbId],
     // Waits on `data` so the origin's own language is known before the
-    // /similar fallback filters by it — recommendations sit behind a
-    // collapsed toggle, so the small added latency costs nothing visible.
+    // /similar fallback filters by it.
     queryFn: () => getYouMayAlsoLike(mediaType as MediaType, tmdbId, data?.originalLanguage),
     enabled: Number.isFinite(tmdbId) && !!data,
     staleTime: 60 * 60_000,
