@@ -78,7 +78,7 @@ export function TitleTimeline({ entries, onSuppress }: TitleTimelineProps) {
               {entry.posterUrl ? (
                 <img src={entry.posterUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                <div className="no-poster-stripes flex h-full w-full items-center justify-center rounded-lg border border-dashed border-muted-foreground/40 text-muted-foreground">
                   {entry.mediaType === 'tv' ? <Tv size={16} /> : <Film size={16} />}
                 </div>
               )}

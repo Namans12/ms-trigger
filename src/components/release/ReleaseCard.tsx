@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import type { ReleaseItem } from "@/types/digest";
-import { Eye, Clock, Plus, Star, Tv, Film, X } from "lucide-react";
+import { Eye, Clock, Plus, Star, ImageOff, X } from "lucide-react";
 import { ActionButton } from "@/components/watchlist/ActionButton";
 
 interface ReleaseCardProps {
@@ -40,8 +40,8 @@ export function ReleaseCard({
         {item.posterUrl ? (
           <img src={item.posterUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-            {item.mediaType === "tv" ? <Tv size={20} className="shrink-0" /> : <Film size={20} className="shrink-0" />}
+          <div className="no-poster-stripes w-full h-full rounded-lg border border-dashed border-muted-foreground/40 flex items-center justify-center text-muted-foreground">
+            <ImageOff size={18} className="shrink-0" />
           </div>
         )}
       </div>

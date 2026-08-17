@@ -160,6 +160,19 @@
 }
 
 @layer utilities {
+  /* Poster placeholder: diagonal stripe texture behind the ImageOff icon,
+     shared by PosterCard and ReleaseCard so a missing poster looks the same
+     everywhere instead of each surface inventing its own empty state. */
+  .no-poster-stripes {
+    background-image: repeating-linear-gradient(
+      135deg,
+      rgb(204 172 124 / 0.06) 0px,
+      rgb(204 172 124 / 0.06) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+  }
+
   .hide-scrollbar {
     scrollbar-width: none;
     -ms-overflow-style: none;

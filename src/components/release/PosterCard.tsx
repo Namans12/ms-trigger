@@ -3,7 +3,7 @@ import type { ReleaseItem } from '@/types/digest';
 import { ActionButton } from '@/components/watchlist/ActionButton';
 import { RatingBadges } from '@/components/release/RatingBadges';
 import { hasAnyScore, type TitleRating } from '@/lib/ratings';
-import { Film, Tv, Star, Plus, Clock, ThumbsDown } from 'lucide-react';
+import { ImageOff, Star, Plus, Clock, ThumbsDown } from 'lucide-react';
 
 interface PosterCardProps {
   item: ReleaseItem;
@@ -48,8 +48,9 @@ export function PosterCard({
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-            {item.mediaType === 'tv' ? <Tv size={28} /> : <Film size={28} />}
+          <div className="no-poster-stripes w-full h-full rounded-xl border border-dashed border-muted-foreground/40 flex flex-col items-center justify-center gap-1.5 text-muted-foreground px-2">
+            <ImageOff size={28} className="shrink-0" />
+            <span className="text-[10px] text-center leading-tight">No poster available</span>
           </div>
         )}
 

@@ -56,7 +56,7 @@ function EntryRow({ entry }: { entry: CalendarEntryDTO }) {
           className="w-9 h-[54px] rounded-lg object-cover bg-secondary shrink-0"
         />
       ) : (
-        <div className="w-9 h-[54px] rounded-lg bg-secondary flex items-center justify-center shrink-0 text-muted-foreground">
+        <div className="no-poster-stripes w-9 h-[54px] rounded-lg border border-dashed border-muted-foreground/40 flex items-center justify-center shrink-0 text-muted-foreground">
           {entry.kind === 'theatrical' ? (
             <Popcorn size={16} />
           ) : entry.mediaType === 'tv' ? (
