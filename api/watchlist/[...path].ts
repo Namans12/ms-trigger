@@ -16,6 +16,15 @@ import type { AddWatchlistItemBody, Bucket } from "../../shared/types/watchlist.
 // Single catch-all for every /api/watchlist/* route (Vercel Hobby caps a
 // deployment at 12 serverless functions, so the item CRUD, reorder, and
 // custom-list CRUD all share this one function instead of five separate files).
+//
+// Every route lives on a sub-path (/state, /items, /reorder, /lists) on
+// purpose: a catch-all only matches paths that *have* a segment after
+// /api/watchlist, so bare /api/watchlist never reaches this function at all —
+// it 404s in Vercel's router before any code runs. Optional catch-all naming
+// ([[...path]]) is a Next.js convention, not something the plain /api
+// file-system routing honours, so the earlier attempt to cover the bare path
+// that way still 404'd in production. api/tmdb/[...path].ts is sub-path-only
+// for the same reason and has always worked.
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -41,25 +50,26 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   if (userId === null) return;
 
   const url = new URL(req.url ?? "/", "http://localhost");
-  // pathname: /api/watchlist[/reorder|/lists|/lists/:id|/:id]
+  // pathname: /api/watchlist/{state|items|items/:id|reorder|lists|lists/:id}
   const afterWatchlist = url.pathname.split("/api/watchlist")[1] ?? "";
   const segments = afterWatchlist.split("/").filter(Boolean);
   const sql = getDb();
 
   try {
-    // /api/watchlist
-    if (segments.length === 0) {
-      if (req.method === "GET") {
-        return sendJson(res, 200, await getWatchlistState(sql, userId));
+    // /api/watchlist/state
+    if (segments.length === 1 && segments[0] === "state") {
+      if (req.method !== "GET") return sendJson(res, 405, { error: "method not allowed" });
+      return sendJson(res, 200, await getWatchlistState(sql, userId));
+    }
+
+    // /api/watchlist/items
+    if (segments.length === 1 && segments[0] === "items") {
+      if (req.method !== "POST") return sendJson(res, 405, { error: "method not allowed" });
+      const body: AddWatchlistItemBody = JSON.parse(await readBody(req));
+      if (!body.tmdbId || !body.mediaType || !body.bucket) {
+        return sendJson(res, 400, { error: "tmdbId, mediaType, and bucket are required" });
       }
-      if (req.method === "POST") {
-        const body: AddWatchlistItemBody = JSON.parse(await readBody(req));
-        if (!body.tmdbId || !body.mediaType || !body.bucket) {
-          return sendJson(res, 400, { error: "tmdbId, mediaType, and bucket are required" });
-        }
-        return sendJson(res, 201, await addWatchlistItem(sql, userId, body));
-      }
-      return sendJson(res, 405, { error: "method not allowed" });
+      return sendJson(res, 201, await addWatchlistItem(sql, userId, body));
     }
 
     // /api/watchlist/reorder
@@ -109,9 +119,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return sendJson(res, 405, { error: "method not allowed" });
     }
 
-    // /api/watchlist/:id
-    if (segments.length === 1) {
-      const dbId = Number(segments[0]);
+    // /api/watchlist/items/:id
+    if (segments.length === 2 && segments[0] === "items") {
+      const dbId = Number(segments[1]);
       if (!Number.isFinite(dbId)) return sendJson(res, 400, { error: "invalid id" });
       if (req.method === "PATCH") {
         const body: { bucket: Bucket; listId?: number } = JSON.parse(await readBody(req));

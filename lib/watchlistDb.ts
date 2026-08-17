@@ -84,13 +84,18 @@ export async function addWatchlistItem(
       WHERE user_id = ${userId} AND bucket = ${body.bucket} AND list_id IS NOT DISTINCT FROM ${listId}
     `;
 
+    // Every optional field is coalesced to the column's own default rather
+    // than passed through: postgres.js rejects `undefined` outright
+    // (UNDEFINED_VALUE) instead of treating it as NULL, so a title that
+    // reaches us without, say, a release date would fail the whole add with
+    // a 500 that reads like a database outage.
     const [row] = await tx`
       INSERT INTO watchlist_items
         (user_id, tmdb_id, media_type, title, poster_path, backdrop_path, overview, release_date,
          vote_average, original_language, bucket, list_id, sort_order)
       VALUES (
-        ${userId}, ${body.tmdbId}, ${body.mediaType}, ${body.title}, ${body.posterPath}, ${body.backdropPath ?? null},
-        ${body.overview}, ${body.releaseDate}, ${body.voteAverage}, ${body.originalLanguage},
+        ${userId}, ${body.tmdbId}, ${body.mediaType}, ${body.title}, ${body.posterPath ?? null}, ${body.backdropPath ?? null},
+        ${body.overview ?? ""}, ${body.releaseDate ?? ""}, ${body.voteAverage ?? 0}, ${body.originalLanguage ?? ""},
         ${body.bucket}, ${listId}, ${next_order}
       )
       RETURNING *

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Movie, WatchlistItem, WatchlistState } from '@/types/movie';
@@ -74,6 +75,17 @@ export function useWatchlist() {
   });
 
   const state = query.data ?? EMPTY_STATE;
+
+  // The mutations report their failures, but a failing *read* fell back to
+  // EMPTY_STATE and looked exactly like "you haven't saved anything yet" —
+  // which is how a 404 on the load path stayed invisible while only the add
+  // button complained.
+  useEffect(() => {
+    if (!query.isError) return;
+    toast.error('Could not load your list', {
+      description: query.error instanceof Error ? query.error.message : undefined,
+    });
+  }, [query.isError, query.error]);
 
   function invalidate() {
     return queryClient.invalidateQueries({ queryKey: QUERY_KEY });

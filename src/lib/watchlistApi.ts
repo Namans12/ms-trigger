@@ -13,20 +13,23 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// Every path here carries a segment after /api/watchlist — the server is one
+// catch-all function, and a catch-all never matches the bare parent path (see
+// api/watchlist/[...path].ts). Bare /api/watchlist 404s in Vercel's router.
 export function fetchWatchlistState(): Promise<WatchlistStateDTO> {
-  return req("/api/watchlist");
+  return req("/api/watchlist/state");
 }
 
 export function addWatchlistItem(body: AddWatchlistItemBody) {
-  return req("/api/watchlist", { method: "POST", body: JSON.stringify(body) });
+  return req("/api/watchlist/items", { method: "POST", body: JSON.stringify(body) });
 }
 
 export function moveWatchlistItem(dbId: number, bucket: Bucket, listId?: number | null) {
-  return req(`/api/watchlist/${dbId}`, { method: "PATCH", body: JSON.stringify({ bucket, listId }) });
+  return req(`/api/watchlist/items/${dbId}`, { method: "PATCH", body: JSON.stringify({ bucket, listId }) });
 }
 
 export function removeWatchlistItem(dbId: number) {
-  return req(`/api/watchlist/${dbId}`, { method: "DELETE" });
+  return req(`/api/watchlist/items/${dbId}`, { method: "DELETE" });
 }
 
 export function reorderBucket(bucket: Bucket, listId: number | null, orderedIds: number[]) {
