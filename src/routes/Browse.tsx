@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import { getTrending, getPopularMovies, getPopularTV, IMG_BACKDROP } from '@/lib/tmdb';
 import { ActionButton } from '@/components/watchlist/ActionButton';
 import { PosterCard } from '@/components/release/PosterCard';
@@ -8,7 +10,31 @@ import { fromMovie } from '@/types/digest';
 import { PosterRow } from '@/components/release/PosterRow';
 import { useSuggestions } from '@/hooks/useSuggestions';
 import { useMediaScope } from '@/hooks/useMediaScope';
-import { TrendingUp, Film, Tv, Flame, Loader2, RefreshCw, Plus, Clock, Sparkles } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { TrendingUp, Film, Tv, Flame, Loader2, RefreshCw, Check, Plus, Clock, Sparkles } from 'lucide-react';
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Refetching these three TMDB lists is usually near-instant (often <50ms,
+ *  since the proxy or TMDB itself serves a warm response), which reads as
+ *  "nothing happened" when a real person clicks it. Floor the spin at this
+ *  long so the feedback is always visible regardless of how fast it actually
+ *  finishes. */
+const MIN_SPIN_MS = 600;
+/** How long the success state lingers before reverting to idle. */
+const DONE_HOLD_MS = 1100;
+/** A query can get stuck in TanStack Query's "paused" state (its retry backs
+ *  off waiting for a network-online transition that already happened, e.g.
+ *  after a brief connectivity blip) and never settle. Cap the wait so the
+ *  button can never be stuck disabled forever — worse than a fast refetch
+ *  reporting done a little early. */
+const REFRESH_TIMEOUT_MS = 6000;
+
+type RefreshState = 'idle' | 'spinning' | 'done';
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'> {
+  return Promise.race([promise, sleep(ms).then(() => 'timeout' as const)]);
+}
 
 export default function Browse() {
   const wl = useWatchlistContext();
@@ -20,7 +46,7 @@ export default function Browse() {
   const popularTVQuery = useQuery({ queryKey: ['tmdb', 'popular-tv'], queryFn: getPopularTV, staleTime: 5 * 60_000 });
 
   const loading = trendingQuery.isLoading || popularMoviesQuery.isLoading || popularTVQuery.isLoading;
-  const refreshing = trendingQuery.isFetching || popularMoviesQuery.isFetching || popularTVQuery.isFetching;
+  const [refreshState, setRefreshState] = useState<RefreshState>('idle');
 
   // The topbar scope filters the mixed rows and hides the two rows that are
   // entirely the other media type, so picking "Movies" doesn't leave a full
@@ -37,10 +63,32 @@ export default function Browse() {
     .map((row) => ({ ...row, items: inScope(row.items) }))
     .filter((row) => row.items.length > 0);
 
-  const handleRefresh = () => {
-    trendingQuery.refetch();
-    popularMoviesQuery.refetch();
-    popularTVQuery.refetch();
+  const handleRefresh = async () => {
+    if (refreshState !== 'idle') return;
+    setRefreshState('spinning');
+    const startedAt = Date.now();
+
+    const outcome = await withTimeout(
+      Promise.allSettled([trendingQuery.refetch(), popularMoviesQuery.refetch(), popularTVQuery.refetch()]),
+      REFRESH_TIMEOUT_MS,
+    );
+    const timedOut = outcome === 'timeout';
+
+    const elapsed = Date.now() - startedAt;
+    if (elapsed < MIN_SPIN_MS) await sleep(MIN_SPIN_MS - elapsed);
+
+    if (timedOut) {
+      // Don't claim success we can't back up — quietly drop back to idle
+      // rather than showing the checkmark for a refresh that never finished.
+      setRefreshState('idle');
+      toast.error('Refresh is taking longer than expected. Try again in a moment.');
+      return;
+    }
+
+    setRefreshState('done');
+    toast.success('Discover refreshed.');
+    await sleep(DONE_HOLD_MS);
+    setRefreshState('idle');
   };
 
   if (loading) {
@@ -60,11 +108,20 @@ export default function Browse() {
         <h2 className="font-display text-lg font-semibold text-foreground">Discover</h2>
         <button
           onClick={handleRefresh}
-          disabled={refreshing}
-          className="inline-flex h-control shrink-0 items-center gap-1.5 rounded-lg bg-secondary px-3 text-xs font-medium leading-none text-secondary-foreground transition-all hover:bg-card-hover disabled:opacity-50"
+          disabled={refreshState !== 'idle'}
+          className={cn(
+            'inline-flex h-control shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-medium leading-none transition-all duration-200 disabled:opacity-100',
+            refreshState === 'done'
+              ? 'bg-watched/15 text-watched'
+              : 'bg-secondary text-secondary-foreground hover:bg-card-hover',
+          )}
         >
-          <RefreshCw size={13} className={`shrink-0 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing…' : 'Refresh'}
+          {refreshState === 'done' ? (
+            <Check size={13} className="shrink-0 animate-[btn-press_0.4s_ease-out]" strokeWidth={2.5} />
+          ) : (
+            <RefreshCw size={13} className={cn('shrink-0', refreshState === 'spinning' && 'animate-spin')} />
+          )}
+          {refreshState === 'spinning' ? 'Refreshing…' : refreshState === 'done' ? 'Refreshed' : 'Refresh'}
         </button>
       </div>
 
