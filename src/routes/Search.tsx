@@ -6,10 +6,12 @@ import { searchMovies } from '@/lib/tmdb';
 import { PosterCard } from '@/components/release/PosterCard';
 import { fromMovie } from '@/types/digest';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
+import { useMediaScope } from '@/hooks/useMediaScope';
 
 export default function Search() {
   const wl = useWatchlistContext();
   const [params, setParams] = useSearchParams();
+  const [mediaType] = useMediaScope();
   const [query, setQuery] = useState(params.get('q') || '');
   const [results, setResults] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,10 +41,17 @@ export default function Search() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The topbar's Movies/Shows scope narrows what TMDB gave back, rather than
+  // issuing a second, differently-scoped request.
+  const visible = mediaType === 'all' ? results : results.filter((m) => m.mediaType === mediaType);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
-    setParams({ q: query }, { replace: true });
+    // Merge rather than replace: a bare { q } would drop the topbar's ?type.
+    const next = new URLSearchParams(params);
+    next.set('q', query);
+    setParams(next, { replace: true });
     runSearch(query);
   };
 
@@ -58,13 +67,13 @@ export default function Search() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search movies, TV shows, anime..."
-            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/40 text-sm"
+            className="h-control-lg w-full rounded-xl border border-border bg-card pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/40"
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground rounded-xl font-semibold text-sm leading-none hover:brightness-110 disabled:opacity-50 active:scale-95 transition-all"
+          className="inline-flex h-control-lg shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold leading-none text-accent-foreground transition-all hover:brightness-110 disabled:opacity-50"
         >
           {loading ? <Loader2 size={16} className="animate-spin shrink-0" /> : <SearchIcon size={16} className="shrink-0" />}
           <span className="hidden sm:inline">{loading ? 'Searching...' : 'Search'}</span>
@@ -77,10 +86,22 @@ export default function Search() {
         </div>
       )}
 
-      {results.length > 0 && <p className="text-xs text-muted-foreground">{results.length} results</p>}
+      {visible.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {visible.length} {visible.length === 1 ? 'result' : 'results'}
+          {mediaType !== 'all' && ` in ${mediaType === 'movie' ? 'movies' : 'shows'}`}
+        </p>
+      )}
+
+      {results.length > 0 && visible.length === 0 && (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          {results.length} {results.length === 1 ? 'result' : 'results'}, but none are{' '}
+          {mediaType === 'movie' ? 'movies' : 'shows'} — switch to All in the topbar to see them.
+        </p>
+      )}
 
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
-        {results.map((movie) => (
+        {visible.map((movie) => (
           <PosterCard
             key={movie.id}
             item={fromMovie(movie)}

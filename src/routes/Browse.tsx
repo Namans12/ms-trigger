@@ -7,12 +7,13 @@ import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { fromMovie } from '@/types/digest';
 import { PosterRow } from '@/components/release/PosterRow';
 import { useSuggestions } from '@/hooks/useSuggestions';
+import { useMediaScope } from '@/hooks/useMediaScope';
 import { TrendingUp, Film, Tv, Flame, Loader2, RefreshCw, Plus, Clock, Sparkles } from 'lucide-react';
 
 export default function Browse() {
   const wl = useWatchlistContext();
+  const [mediaType] = useMediaScope();
   const suggestionsQuery = useSuggestions();
-  const suggestions = suggestionsQuery.data ?? [];
 
   const trendingQuery = useQuery({ queryKey: ['tmdb', 'trending'], queryFn: getTrending, staleTime: 5 * 60_000 });
   const popularMoviesQuery = useQuery({ queryKey: ['tmdb', 'popular-movies'], queryFn: getPopularMovies, staleTime: 5 * 60_000 });
@@ -21,10 +22,20 @@ export default function Browse() {
   const loading = trendingQuery.isLoading || popularMoviesQuery.isLoading || popularTVQuery.isLoading;
   const refreshing = trendingQuery.isFetching || popularMoviesQuery.isFetching || popularTVQuery.isFetching;
 
-  const trending = trendingQuery.data ?? [];
-  const popularMovies = popularMoviesQuery.data ?? [];
-  const popularTV = popularTVQuery.data ?? [];
+  // The topbar scope filters the mixed rows and hides the two rows that are
+  // entirely the other media type, so picking "Movies" doesn't leave a full
+  // shelf of TV shows underneath.
+  const inScope = <T extends { mediaType: string }>(items: T[]) =>
+    mediaType === 'all' ? items : items.filter((m) => m.mediaType === mediaType);
+
+  const trending = inScope(trendingQuery.data ?? []);
+  const popularMovies = mediaType === 'tv' ? [] : (popularMoviesQuery.data ?? []);
+  const popularTV = mediaType === 'movie' ? [] : (popularTVQuery.data ?? []);
   const heroMovie = trending.find((m) => m.backdropPath) || trending[0];
+
+  const suggestions = (suggestionsQuery.data ?? [])
+    .map((row) => ({ ...row, items: inScope(row.items) }))
+    .filter((row) => row.items.length > 0);
 
   const handleRefresh = () => {
     trendingQuery.refetch();
@@ -40,6 +51,9 @@ export default function Browse() {
     );
   }
 
+  const nothingInScope =
+    suggestions.length === 0 && trending.length === 0 && popularMovies.length === 0 && popularTV.length === 0;
+
   return (
     <div className="space-y-8 animate-[fade-in_0.3s_ease-out]">
       <div className="flex items-center justify-between">
@@ -47,7 +61,7 @@ export default function Browse() {
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium leading-none hover:bg-card-hover active:scale-95 transition-all disabled:opacity-50"
+          className="inline-flex h-control shrink-0 items-center gap-1.5 rounded-lg bg-secondary px-3 text-xs font-medium leading-none text-secondary-foreground transition-all hover:bg-card-hover disabled:opacity-50"
         >
           <RefreshCw size={13} className={`shrink-0 ${refreshing ? 'animate-spin' : ''}`} />
           {refreshing ? 'Refreshing…' : 'Refresh'}
@@ -143,6 +157,12 @@ export default function Browse() {
             ))}
           </div>
         </section>
+      )}
+
+      {nothingInScope && (
+        <p className="py-20 text-center text-sm text-muted-foreground">
+          Nothing here for this media type — switch back to All in the topbar.
+        </p>
       )}
 
       {popularTV.length > 0 && (

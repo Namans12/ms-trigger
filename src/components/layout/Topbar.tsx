@@ -1,17 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation, useMatch } from 'react-router-dom';
 import { toast } from 'sonner';
-import { SpotlightWordmark } from '@/components/brand/SpotlightLogo';
+import { Segmented } from '@/components/ui/segmented';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { SpotlightLogo } from '@/components/brand/SpotlightLogo';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Compass, CalendarDays, List, Home as HomeIcon, Eye, RefreshCw, LogOut } from 'lucide-react';
+import { useMediaScope, type MediaScope } from '@/hooks/useMediaScope';
+import { useSidebar } from './SidebarContext';
+import { cn } from '@/lib/utils';
+import { Menu, PanelLeft, Film, Tv, LayoutGrid, List, Eye, RefreshCw, LogOut } from 'lucide-react';
 
-const NAV_LINKS = [
-  { to: '/', label: 'Home', icon: <HomeIcon size={16} /> },
-  { to: '/calendar', label: 'Calendar', icon: <CalendarDays size={16} /> },
-  { to: '/browse', label: 'Browse', icon: <Compass size={16} /> },
-  { to: '/search', label: 'Search', icon: <Search size={16} /> },
+const SCOPE_OPTIONS: { id: MediaScope; label: string; icon: React.ReactNode }[] = [
+  { id: 'all', label: 'All', icon: <LayoutGrid size={13} /> },
+  { id: 'movie', label: 'Movies', icon: <Film size={13} /> },
+  { id: 'tv', label: 'Shows', icon: <Tv size={13} /> },
 ];
+
+/** Routes where a Movies/Shows split changes what you see. A title page or the
+ *  login screen has nothing to scope, so the control is hidden there instead of
+ *  sitting inert in the bar. */
+function useScopeApplies(): boolean {
+  const { pathname } = useLocation();
+  const onTitle = useMatch('/title/*');
+  if (onTitle) return false;
+  return ['/', '/browse', '/calendar', '/search'].includes(pathname) || pathname.startsWith('/list');
+}
 
 function UserMenu() {
   const { user, logout } = useAuth();
@@ -31,31 +45,31 @@ function UserMenu() {
   const initial = user.displayName.trim().charAt(0).toUpperCase() || '?';
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative shrink-0" ref={menuRef}>
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="Account menu"
-        className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-accent/20 text-accent flex items-center justify-center text-xs font-bold ring-1 ring-border hover:ring-accent/40 transition-all"
+        className="flex size-control items-center justify-center overflow-hidden rounded-full bg-accent/20 text-xs font-bold text-accent ring-1 ring-border transition-all hover:ring-accent/40"
       >
         {user.avatarUrl ? (
-          <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+          <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
         ) : (
           initial
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-52 rounded-xl bg-card border border-border shadow-lg py-1.5 z-50">
-          <div className="px-3 py-2 border-b border-border">
-            <p className="text-xs font-semibold text-foreground truncate">{user.displayName}</p>
-            <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
+        <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-border bg-popover py-1.5 shadow-xl">
+          <div className="border-b border-border px-3 py-2">
+            <p className="truncate text-xs font-semibold text-foreground">{user.displayName}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{user.email}</p>
           </div>
           <button
             onClick={() => {
               setOpen(false);
               logout.mutate();
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <LogOut size={13} /> Sign out
           </button>
@@ -65,9 +79,33 @@ function UserMenu() {
   );
 }
 
-export function Topbar() {
+/** Live counts for the two buckets people check most. Hidden on narrow screens,
+ *  where the sidebar already carries the same numbers as badges. */
+function CountPills() {
   const wl = useWatchlistContext();
+  return (
+    <div className="hidden items-center gap-1.5 lg:flex">
+      <NavLink
+        to="/list/watchlist"
+        className="inline-flex h-chip items-center gap-1 rounded-md bg-accent/10 px-2 text-[11px] font-semibold leading-none text-accent transition-colors hover:bg-accent/20"
+      >
+        <List size={11} className="shrink-0" /> {wl.watchlist.length}
+      </NavLink>
+      <NavLink
+        to="/list/watched"
+        className="inline-flex h-chip items-center gap-1 rounded-md bg-watched/10 px-2 text-[11px] font-semibold leading-none text-watched transition-colors hover:bg-watched/20"
+      >
+        <Eye size={11} className="shrink-0" /> {wl.watched.length}
+      </NavLink>
+    </div>
+  );
+}
+
+export function Topbar() {
   const { isAuthenticated } = useAuth();
+  const { toggle, expanded, isMobile } = useSidebar();
+  const [scope, setScope] = useMediaScope();
+  const scopeApplies = useScopeApplies();
   const [refreshing, setRefreshing] = useState(false);
 
   const handleForceRefresh = async () => {
@@ -85,75 +123,77 @@ export function Topbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 glass border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <NavLink to="/">
-          <SpotlightWordmark />
+    <header className="glass border-b border-border">
+      <div className="flex h-topbar items-center gap-3 px-4 sm:px-gutter">
+        <Tooltip delayDuration={400}>
+          <TooltipTrigger asChild>
+            <button
+              onClick={toggle}
+              aria-label={isMobile ? 'Open navigation' : expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+              className="grid size-control shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              {isMobile ? <Menu size={18} /> : <PanelLeft size={18} />}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{isMobile ? 'Menu' : expanded ? 'Collapse sidebar' : 'Expand sidebar'}</TooltipContent>
+        </Tooltip>
+
+        {/* The wordmark lives in the sidebar on desktop; on mobile the drawer is
+            hidden, so the topbar carries the mark instead. */}
+        <NavLink to="/" className="flex shrink-0 items-center gap-2 md:hidden">
+          <SpotlightLogo size={26} />
+          <span className="font-display text-base font-semibold tracking-tight text-foreground">Spotlight</span>
         </NavLink>
 
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1.5">
-            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-accent/10 text-accent text-[11px] font-semibold leading-none">
-              <List size={11} className="shrink-0" /> {wl.watchlist.length}
-            </div>
-            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-watched/10 text-watched text-[11px] font-semibold leading-none">
-              <Eye size={11} className="shrink-0" /> {wl.watched.length}
-            </div>
-          </div>
-          {isAuthenticated && (
-            <button
-              onClick={handleForceRefresh}
-              disabled={refreshing}
-              title="Force refresh release data"
-              className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-secondary text-secondary-foreground hover:bg-card-hover transition-all disabled:opacity-50 shrink-0"
-            >
-              <RefreshCw size={14} className={`shrink-0 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
-          )}
+        {scopeApplies && (
+          <Segmented
+            options={SCOPE_OPTIONS}
+            value={scope}
+            onChange={setScope}
+            aria-label="Media type"
+            className="hidden sm:flex"
+          />
+        )}
+
+        <div className="flex-1" />
+
+        <CountPills />
+
+        {isAuthenticated && (
+          <Tooltip delayDuration={400}>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleForceRefresh}
+                disabled={refreshing}
+                aria-label="Force refresh release data"
+                className="grid size-control shrink-0 place-items-center rounded-lg bg-secondary text-secondary-foreground transition-all hover:bg-card-hover disabled:opacity-50"
+              >
+                <RefreshCw size={14} className={cn('shrink-0', refreshing && 'animate-spin')} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Refresh release data</TooltipContent>
+          </Tooltip>
+        )}
+
+        {isAuthenticated ? (
+          <UserMenu />
+        ) : (
           <NavLink
-            to="/list"
-            className={({ isActive }) =>
-              `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold leading-none transition-all duration-200 ${
-                isActive ? 'bg-accent text-accent-foreground' : 'bg-secondary text-secondary-foreground hover:bg-card-hover'
-              }`
-            }
+            to="/login"
+            className="inline-flex h-control shrink-0 items-center rounded-lg bg-accent px-4 text-xs font-semibold leading-none text-accent-foreground transition-all hover:brightness-110"
           >
-            My List
+            Sign in
           </NavLink>
-          {isAuthenticated ? (
-            <UserMenu />
-          ) : (
-            <NavLink
-              to="/login"
-              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold leading-none bg-accent text-accent-foreground hover:brightness-110 transition-all"
-            >
-              Sign in
-            </NavLink>
-          )}
-        </div>
+        )}
       </div>
 
-      <nav className="border-t border-border">
-        <div className="max-w-3xl mx-auto px-3 sm:px-6 py-2 flex gap-1 overflow-x-auto hide-scrollbar">
-          {NAV_LINKS.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.to === '/'}
-              className={({ isActive }) =>
-                `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium leading-none whitespace-nowrap transition-all duration-200 ${
-                  isActive
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary hover:shadow-sm'
-                }`
-              }
-            >
-              <span className="shrink-0">{link.icon}</span>
-              <span>{link.label}</span>
-            </NavLink>
-          ))}
+      {/* Mobile keeps the scope control on its own row rather than squeezing it
+          next to the wordmark. */}
+      {scopeApplies && (
+        <div className="border-t border-border px-4 py-2 sm:hidden">
+          <Segmented options={SCOPE_OPTIONS} value={scope} onChange={setScope} aria-label="Media type" fill />
         </div>
-      </nav>
+      )}
     </header>
   );
 }

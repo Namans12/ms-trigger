@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams, Link } from 'react-router-dom';
 import { fetchCalendarMonth } from '@/lib/api';
+import { Toolbar } from '@/components/layout/Toolbar';
+import { Segmented } from '@/components/ui/segmented';
+import { useMediaScope } from '@/hooks/useMediaScope';
 import type { CalendarEntryDTO, CalendarKind } from '../../shared/types/calendar';
 import { ChevronLeft, ChevronRight, Loader2, Film, Tv, Clapperboard, Star, Popcorn, MonitorPlay } from 'lucide-react';
 
@@ -114,6 +117,7 @@ function DayGroups({ entries }: { entries: CalendarEntryDTO[] }) {
 
 export default function Calendar() {
   const [params, setParams] = useSearchParams();
+  const [mediaType] = useMediaScope();
   const month = params.get('month') || currentMonth();
   const kind = (params.get('kind') as KindFilter) || 'all';
 
@@ -130,54 +134,70 @@ export default function Calendar() {
     setParams(next, { replace: true });
   }
 
-  const entries = data?.entries ?? [];
+  // The topbar's Movies/Shows scope narrows the calendar too. Rows whose media
+  // type was never resolved stay visible under "All" only, rather than being
+  // silently dropped from both halves of the split.
+  const allEntries = data?.entries ?? [];
+  const entries = mediaType === 'all' ? allEntries : allEntries.filter((e) => e.mediaType === mediaType);
   const counts: Record<CalendarKind, number> = { theatrical: 0, streaming: 0, tv_network: 0 };
   for (const entry of entries) counts[entry.kind] = (counts[entry.kind] ?? 0) + 1;
 
   const visibleSections = kind === 'all' ? SECTIONS : SECTIONS.filter((s) => s.kind === kind);
   const hasAny = visibleSections.some((s) => counts[s.kind] > 0);
 
+  const tabOptions = TABS.map((tab) => ({
+    id: tab.id,
+    label: tab.label,
+  }));
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => updateParam('month', shiftMonth(month, -1))}
-          aria-label="Previous month"
-          className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-secondary text-foreground hover:bg-card-hover transition-all"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <h2 className="font-display text-lg font-bold text-foreground">{monthLabel(month)}</h2>
-        <button
-          onClick={() => updateParam('month', shiftMonth(month, 1))}
-          aria-label="Next month"
-          className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-secondary text-foreground hover:bg-card-hover transition-all"
-        >
-          <ChevronRight size={18} />
-        </button>
-      </div>
-
-      <div role="tablist" className="flex gap-1 overflow-x-auto hide-scrollbar border-b border-border">
-        {TABS.map((tab) => {
-          const count = tab.id === 'all' ? entries.length : counts[tab.id as CalendarKind];
-          const active = kind === tab.id;
-          return (
+      <Toolbar>
+        <div className="flex h-toolbar items-center gap-2 overflow-x-auto px-4 hide-scrollbar sm:px-gutter">
+          {/* Month stepper reads as one unit: two arrows either side of a fixed
+              label width, so the month name doesn't shift the arrows around. */}
+          <div className="inline-flex h-control shrink-0 items-center rounded-lg border border-border bg-secondary">
             <button
-              key={tab.id}
-              role="tab"
-              aria-selected={active}
-              onClick={() => updateParam('kind', tab.id)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 -mb-px text-xs font-semibold leading-none whitespace-nowrap border-b-2 transition-colors duration-200 ${
-                active
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
+              onClick={() => updateParam('month', shiftMonth(month, -1))}
+              aria-label="Previous month"
+              className="grid h-full w-8 place-items-center rounded-l-lg text-muted-foreground hover:text-foreground active:!scale-100"
             >
-              {tab.label}
-              {data && <span className="opacity-60 font-medium">{count}</span>}
+              <ChevronLeft size={15} />
             </button>
-          );
-        })}
+            <span className="min-w-[8.5rem] px-1 text-center font-display text-xs font-semibold text-foreground">
+              {monthLabel(month)}
+            </span>
+            <button
+              onClick={() => updateParam('month', shiftMonth(month, 1))}
+              aria-label="Next month"
+              className="grid h-full w-8 place-items-center rounded-r-lg text-muted-foreground hover:text-foreground active:!scale-100"
+            >
+              <ChevronRight size={15} />
+            </button>
+          </div>
+
+          <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+
+          <Segmented
+            options={tabOptions}
+            value={kind}
+            onChange={(id) => updateParam('kind', id)}
+            aria-label="Release kind"
+          />
+
+          {data && (
+            <span className="shrink-0 pl-1 text-[11px] tabular-nums text-muted-foreground">
+              {entries.length} {entries.length === 1 ? 'release' : 'releases'}
+            </span>
+          )}
+        </div>
+      </Toolbar>
+
+      <div className="flex items-baseline gap-2">
+        <h2 className="font-display text-lg font-semibold text-foreground">{monthLabel(month)}</h2>
+        <span className="text-xs text-muted-foreground">
+          {kind === 'all' ? 'All releases' : TABS.find((t) => t.id === kind)?.label}
+        </span>
       </div>
 
       {isLoading && (

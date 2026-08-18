@@ -39,6 +39,27 @@
 
   --radius: 0.75rem;
 
+  /* ── Layout system ──────────────────────────────────────────────────────
+     Every measurement below is a multiple of 8px (MUI's spacing unit), so
+     rails, bars and controls line up on one grid instead of each surface
+     picking its own padding. Consumed as Tailwind utilities via the
+     --spacing-* registrations in @theme (w-sidebar, h-topbar, h-control…). */
+  --sidebar-w: 15rem;         /* 240px — expanded drawer */
+  --sidebar-w-mini: 4.5rem;   /* 72px  — icon rail: 16 + 40 + 16 */
+  --topbar-h: 4rem;           /* 64px  — 8 × 8 */
+  --toolbar-h: 3.5rem;        /* 56px  — 7 × 8, the filter row */
+  --control-h: 2.25rem;       /* 36px  — every button, input and select */
+  --control-h-lg: 2.75rem;    /* 44px  — a page's primary input, e.g. Search */
+  --chip-h: 1.75rem;          /* 28px  — filter chips and badges */
+  --rail-item: 2.5rem;        /* 40px  — nav icon box, centred in the rail */
+  --gutter: 1.5rem;           /* 24px  — page and bar side padding */
+
+  /* Drawer motion, borrowed from MUI's transition scale: asymmetric on
+     purpose — opening is allowed to take longer than closing. */
+  --dur-enter: 225ms;
+  --dur-exit: 195ms;
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+
   --watched: #8fa37a;
   --danger: #b5605a;
   --gold: #d9bd8f;
@@ -76,6 +97,19 @@
 
   --font-sans: 'Synonym', system-ui, -apple-system, sans-serif;
   --font-display: 'Chillax', 'Synonym', system-ui, sans-serif;
+
+  /* Named spacing tokens → w-sidebar, w-rail, h-topbar, h-toolbar, h-control,
+     h-chip, size-rail-item, px-gutter, plus the matching top- and inset-
+     offsets. One source of truth for the shell's geometry. */
+  --spacing-sidebar: var(--sidebar-w);
+  --spacing-rail: var(--sidebar-w-mini);
+  --spacing-topbar: var(--topbar-h);
+  --spacing-toolbar: var(--toolbar-h);
+  --spacing-control: var(--control-h);
+  --spacing-control-lg: var(--control-h-lg);
+  --spacing-chip: var(--chip-h);
+  --spacing-rail-item: var(--rail-item);
+  --spacing-gutter: var(--gutter);
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -171,6 +205,25 @@
       transparent 8px,
       transparent 16px
     );
+  }
+
+  /* Content column beside the fixed drawer. The offset is only real from the
+     md breakpoint up (below it the drawer is an overlay sheet), which is why
+     this lives here rather than as an inline style on the element. */
+  .shell-content {
+    transition: margin-left var(--shell-dur, var(--dur-enter)) var(--ease-emphasized);
+  }
+
+  @media (min-width: 768px) {
+    .shell-content {
+      margin-left: var(--shell-offset, var(--sidebar-w-mini));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shell-content {
+      transition: none;
+    }
   }
 
   .hide-scrollbar {
