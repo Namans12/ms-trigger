@@ -129,10 +129,29 @@ export function useWatchlist() {
   });
 
   const reorderMutation = useMutation({
-    mutationFn: (vars: { bucket: 'watchlist' | 'watchLater'; orderedIds: number[] }) =>
+    mutationFn: (vars: { bucket: 'watchlist' | 'watchLater'; orderedIds: number[]; items: WatchlistItem[] }) =>
       api.reorderBucket(vars.bucket, null, vars.orderedIds),
-    onSuccess: invalidate,
-    onError: onError('save the new order'),
+    // Drag-and-drop needs the new order to land the instant you drop the
+    // card — waiting for the round trip (previously N sequential UPDATEs,
+    // now one, but still a network hop) made every reorder look like it had
+    // snapped back before catching up. Writing the already-computed order
+    // straight into the cache here means the list never has to wait.
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey: QUERY_KEY });
+      const previous = queryClient.getQueryData<WatchlistState>(QUERY_KEY);
+      queryClient.setQueryData<WatchlistState>(QUERY_KEY, (old) =>
+        old ? { ...old, [vars.bucket]: vars.items } : old,
+      );
+      return { previous };
+    },
+    onError: (err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(QUERY_KEY, context.previous);
+      onError('save the new order')(err);
+    },
+    // Reconcile with the server either way: confirms the optimistic write on
+    // success, and re-syncs past the rollback on error in case something else
+    // changed the list in the meantime.
+    onSettled: invalidate,
   });
 
   const createListMutation = useMutation({
@@ -166,14 +185,14 @@ export function useWatchlist() {
     const items = [...state.watchlist];
     const [moved] = items.splice(oldIndex, 1);
     items.splice(newIndex, 0, moved);
-    reorderMutation.mutate({ bucket: 'watchlist', orderedIds: items.map((i) => i.dbId) });
+    reorderMutation.mutate({ bucket: 'watchlist', orderedIds: items.map((i) => i.dbId), items });
   };
 
   const reorderWatchLater = (oldIndex: number, newIndex: number) => {
     const items = [...state.watchLater];
     const [moved] = items.splice(oldIndex, 1);
     items.splice(newIndex, 0, moved);
-    reorderMutation.mutate({ bucket: 'watchLater', orderedIds: items.map((i) => i.dbId) });
+    reorderMutation.mutate({ bucket: 'watchLater', orderedIds: items.map((i) => i.dbId), items });
   };
 
   const createList = (name: string) => {

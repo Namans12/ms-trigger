@@ -145,7 +145,13 @@ export async function removeWatchlistItem(sql: postgres.Sql<any>, userId: number
   await sql`DELETE FROM watchlist_items WHERE id = ${dbId} AND user_id = ${userId}`;
 }
 
-/** Rewrites sort_order for every item in a bucket to match the given order. */
+/** Rewrites sort_order for every item in a bucket to match the given order.
+ *
+ *  One statement via unnest, not one UPDATE per item in a transaction — a
+ *  drag-and-drop reorder was previously as many sequential round trips as
+ *  there were items in the bucket, which is exactly the latency a user
+ *  dragging a card actually feels. Same pattern already used for batch reads
+ *  in ratingsDb.ts's unnest(...)::bigint[] lookup. */
 export async function reorderBucket(
   sql: postgres.Sql<any>,
   userId: number,
@@ -153,15 +159,20 @@ export async function reorderBucket(
   listId: number | null,
   orderedIds: number[],
 ): Promise<void> {
-  await sql.begin(async (tx) => {
-    for (let i = 0; i < orderedIds.length; i++) {
-      await tx`
-        UPDATE watchlist_items
-        SET sort_order = ${i}
-        WHERE id = ${orderedIds[i]} AND user_id = ${userId} AND bucket = ${bucket} AND list_id IS NOT DISTINCT FROM ${listId}
-      `;
-    }
-  });
+  if (orderedIds.length === 0) return;
+  const sortOrders = orderedIds.map((_, i) => i);
+
+  await sql`
+    UPDATE watchlist_items AS w
+    SET sort_order = data.sort_order
+    FROM (
+      SELECT * FROM unnest(${orderedIds}::bigint[], ${sortOrders}::int[]) AS t(id, sort_order)
+    ) AS data
+    WHERE w.id = data.id
+      AND w.user_id = ${userId}
+      AND w.bucket = ${bucket}
+      AND w.list_id IS NOT DISTINCT FROM ${listId}
+  `;
 }
 
 export async function createCustomList(sql: postgres.Sql<any>, userId: number, name: string): Promise<CustomListDTO> {
