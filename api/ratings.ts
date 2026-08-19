@@ -87,9 +87,18 @@ async function handleSingle(req: IncomingMessage, res: ServerResponse, key: Rati
     // cron's job and must never block a request on a live OMDb call.
     if (cached) return sendJson(res, 200, toRatingDTO(cached), CACHE_CONTROL);
 
-    // Genuine miss. Rate limiting degrades to "no ratings" instead of 429 so a
-    // burst can't turn a decorative overlay into a visible failure.
-    if (!omdbConfigured() || isRateLimited(req)) return sendJson(res, 200, null, CACHE_CONTROL);
+    // Genuine miss, and OMDb isn't even configured for this deployment — a
+    // stable fact until the next redeploy, so the long cache is correct here.
+    if (!omdbConfigured()) return sendJson(res, 200, null, CACHE_CONTROL);
+
+    // Rate limiting degrades to "no ratings" instead of 429 so a burst can't
+    // turn a decorative overlay into a visible failure — but no-store, not
+    // CACHE_CONTROL: this is empty because THIS request got rate-limited, not
+    // because the title has no ratings. The CDN caches per-URL, not per-IP, so
+    // a long TTL here would paint every other visitor to this title with one
+    // spammer's empty answer for a day (same bug already fixed once in
+    // api/relations.ts's rate-limit path).
+    if (isRateLimited(req)) return sendJson(res, 200, null, "no-store");
 
     const lookup = await resolveOmdbLookup(key.mediaType, key.tmdbId);
     if (!lookup || (!lookup.imdbId && !lookup.title)) return sendJson(res, 200, null, "no-store");

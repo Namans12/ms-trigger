@@ -56,7 +56,7 @@ function requireApiKey(): string {
 export async function tmdbSearchMulti(query: string): Promise<TmdbMovieResult[]> {
   if (!query.trim()) return [];
   const url = `${TMDB_BASE_URL}/search/multi?api_key=${requireApiKey()}&query=${encodeURIComponent(query)}&include_adult=false`;
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) throw new Error(`TMDB search failed: ${res.status}`);
   const data = await res.json();
   return (data.results ?? [])
@@ -67,7 +67,7 @@ export async function tmdbSearchMulti(query: string): Promise<TmdbMovieResult[]>
 
 export async function tmdbTrending(): Promise<TmdbMovieResult[]> {
   const url = `${TMDB_BASE_URL}/trending/all/week?api_key=${requireApiKey()}`;
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) throw new Error(`TMDB trending failed: ${res.status}`);
   const data = await res.json();
   return (data.results ?? [])
@@ -78,7 +78,7 @@ export async function tmdbTrending(): Promise<TmdbMovieResult[]> {
 
 export async function tmdbPopularMovies(): Promise<TmdbMovieResult[]> {
   const url = `${TMDB_BASE_URL}/movie/popular?api_key=${requireApiKey()}`;
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) throw new Error(`TMDB popular movies failed: ${res.status}`);
   const data = await res.json();
   return (data.results ?? []).slice(0, 10).map((r: any) => mapResult(r, "movie"));
@@ -86,7 +86,7 @@ export async function tmdbPopularMovies(): Promise<TmdbMovieResult[]> {
 
 export async function tmdbPopularTV(): Promise<TmdbMovieResult[]> {
   const url = `${TMDB_BASE_URL}/tv/popular?api_key=${requireApiKey()}`;
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) throw new Error(`TMDB popular TV failed: ${res.status}`);
   const data = await res.json();
   return (data.results ?? []).slice(0, 10).map((r: any) => mapResult(r, "tv"));
@@ -94,7 +94,7 @@ export async function tmdbPopularTV(): Promise<TmdbMovieResult[]> {
 
 async function tmdbList(path: string, mediaType?: "movie" | "tv"): Promise<TmdbMovieResult[]> {
   const joiner = path.includes("?") ? "&" : "?";
-  const res = await fetch(`${TMDB_BASE_URL}${path}${joiner}api_key=${requireApiKey()}`);
+  const res = await fetchWithRetry(`${TMDB_BASE_URL}${path}${joiner}api_key=${requireApiKey()}`);
   if (!res.ok) throw new Error(`TMDB request failed: ${res.status}`);
   const data = await res.json();
   return (data.results ?? [])
@@ -113,16 +113,22 @@ export function tmdbSimilar(mediaType: "movie" | "tv", id: number): Promise<Tmdb
   return tmdbList(`/${mediaType}/${id}/similar`, mediaType);
 }
 
-/** fetch with a couple of retries on transient failures.
- *
- *  Reserved for the self-warming relations path, where a dropped connection
- *  means a visitor sees no Watch order until they happen to reload. Retries a
- *  network error or 5xx; never retries a 404, which is a real answer. */
+// Vercel kills a function at vercel.json's maxDuration (15s) with a bare
+// platform error page — the app's own graceful-degradation code never runs
+// if TMDB just hangs rather than erroring. 8s (matching lib/omdb.ts) leaves
+// room for a retry to still land inside that budget.
+const REQUEST_TIMEOUT_MS = 8_000;
+
+/** The one fetch path every TMDB call in this file goes through: a timeout so
+ *  a hung connection fails fast instead of riding the function to its hard
+ *  Vercel kill, plus a couple of retries on transient failures. Retries a
+ *  network error, a timeout, or a 5xx; never retries a 404, which is a real
+ *  answer. */
 async function fetchWithRetry(url: string, attempts = 3): Promise<Response> {
   let lastError: unknown = new Error("no attempt made");
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
       if (res.status < 500) return res;
       lastError = new Error(`TMDB HTTP ${res.status}`);
     } catch (err) {
@@ -186,7 +192,7 @@ export interface CreditsResult {
 }
 
 export async function tmdbCredits(mediaType: "movie" | "tv", id: number): Promise<CreditsResult> {
-  const res = await fetch(`${TMDB_BASE_URL}/${mediaType}/${id}/credits?api_key=${requireApiKey()}`);
+  const res = await fetchWithRetry(`${TMDB_BASE_URL}/${mediaType}/${id}/credits?api_key=${requireApiKey()}`);
   if (!res.ok) throw new Error(`TMDB credits failed: ${res.status}`);
   const data = await res.json();
   return {
@@ -243,7 +249,7 @@ export async function tmdbDetail(mediaType: "movie" | "tv", id: number, region =
   const path = mediaType === "movie" ? "movie" : "tv";
   const append = mediaType === "movie" ? "release_dates,watch/providers" : "watch/providers";
   const url = `${TMDB_BASE_URL}/${path}/${id}?api_key=${requireApiKey()}&append_to_response=${append}`;
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) throw new Error(`TMDB detail failed: ${res.status}`);
   const r = await res.json();
 

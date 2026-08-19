@@ -167,7 +167,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const rawDepth = Number(url.searchParams.get("depth"));
   const depth = Number.isFinite(rawDepth) ? Math.min(Math.max(Math.trunc(rawDepth), 1), MAX_DEPTH) : DEFAULT_DEPTH;
 
-  if (isRateLimited(req)) return sendJson(res, 200, EMPTY_RELATIONS, CACHE_CONTROL);
+  // no-store, not CACHE_CONTROL: this response is empty only because THIS
+  // request got rate-limited, not because the title has no relations. The
+  // CDN caches per-URL, not per-IP, so a long TTL here would paint every
+  // other visitor to this title with one spammer's empty answer for a day —
+  // and would also block warmFromCollection from ever running until the
+  // entry expired.
+  if (isRateLimited(req)) return sendJson(res, 200, EMPTY_RELATIONS, "no-store");
 
   const key: RelationKey = { tmdbId, mediaType };
   const userId = getSessionUserId(req);
@@ -178,7 +184,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const warmed = await warmFromCollection(sql, key, relations);
     if (warmed) relations = await getRelations(sql, key, depth, userId);
 
-    return sendJson(res, 200, relations, CACHE_CONTROL);
+    // The CDN caches by URL, which carries no user identity — but this
+    // payload isn't the same for everyone: a signed-in user's own
+    // suppressions filter it (see walkMustChain/getCanWatch). Caching that
+    // publicly would let one person's thumbs-down get served to every other
+    // visitor to this title, or a stale personalised view get served back to
+    // that same person once they're no longer the one populating the cache.
+    // Only the userId === null (anonymous) response is the same for everyone
+    // and safe to cache at the edge.
+    return sendJson(res, 200, relations, userId === null ? CACHE_CONTROL : "no-store");
   } catch (err) {
     console.error("[relations] lookup failed", err);
     return sendJson(res, 200, EMPTY_RELATIONS, "no-store");

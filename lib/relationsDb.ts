@@ -167,9 +167,10 @@ async function getCanWatch(sql: postgres.Sql<any>, key: RelationKey, userId: num
 }
 
 /** Reads the origin's own denormalised fields off any edge pointing at it.
- *  Deliberately unindexed: this table is bounded by the generators' fan-out cap
- *  (a few hundred titles x 12 edges), so a single-row scan here is far cheaper
- *  than carrying a reverse index on every write. */
+ *  Served by idx_title_relations_to (migrations/0004_title_relations_reverse_index.sql)
+ *  — this table is no longer bounded by the generators' fan-out cap now that
+ *  warmFromCollection (api/relations.ts) writes on every cache-miss title, so a
+ *  sequential scan here would grow with the whole table rather than staying flat. */
 async function getOrigin(sql: postgres.Sql<any>, key: RelationKey): Promise<RelationOriginDTO | null> {
   const [row] = await sql`
     SELECT to_title, to_poster_path, to_release_date
