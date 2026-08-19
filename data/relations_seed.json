@@ -1,6 +1,11 @@
 [
   {
-    "from": { "media_type": "movie", "tmdb_id": 693134, "title": "Dune: Part Two", "year": 2024 },
+    "from": {
+      "media_type": "movie",
+      "tmdb_id": 693134,
+      "title": "Dune: Part Two",
+      "year": 2024
+    },
     "must": [
       {
         "title": "Dune",
@@ -13,7 +18,12 @@
     "can": []
   },
   {
-    "from": { "media_type": "movie", "tmdb_id": 109414, "title": "This Is the End", "year": 2013 },
+    "from": {
+      "media_type": "movie",
+      "tmdb_id": 109414,
+      "title": "This Is the End",
+      "year": 2013
+    },
     "must": [],
     "can": [
       {
@@ -27,6 +37,141 @@
         "year": 2007,
         "confidence": 0.75,
         "reason": "The cast play exaggerated versions of the personas they built here."
+      }
+    ]
+  },
+  {
+    "from": {
+      "media_type": "movie",
+      "tmdb_id": 299536,
+      "title": "Avengers: Infinity War",
+      "year": 2018
+    },
+    "must": [
+      {
+        "title": "Captain America: Civil War",
+        "year": 2016,
+        "direction": "before",
+        "confidence": 0.9,
+        "reason": "Civil War fractures the Avengers and scatters them as fugitives — Infinity War assumes you know why Cap, Widow and Falcon are on the run and why Tony won't speak to them."
+      },
+      {
+        "title": "Thor: Ragnarok",
+        "year": 2017,
+        "direction": "before",
+        "confidence": 0.9,
+        "reason": "Asgard is destroyed and its survivors are refugees in space when Infinity War opens — that's where Ragnarok left them, along with Loki holding the Tesseract and Hulk refusing to resurface as Banner."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": {
+      "media_type": "movie",
+      "tmdb_id": 299534,
+      "title": "Avengers: Endgame",
+      "year": 2019
+    },
+    "must": [
+      {
+        "title": "Ant-Man and the Wasp",
+        "year": 2018,
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "The Quantum Realm mechanics that make Endgame's time-travel plan possible — and how Scott Lang ends up trapped there during the five-year gap — are set up here."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": {
+      "media_type": "movie",
+      "tmdb_id": 453395,
+      "title": "Doctor Strange in the Multiverse of Madness",
+      "year": 2022
+    },
+    "must": [
+      {
+        "title": "Spider-Man: No Way Home",
+        "year": 2021,
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "The multiverse-fracturing spell Doctor Strange casts — and the price he's already paid for meddling with reality — is the direct fallout of No Way Home."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": {
+      "media_type": "movie",
+      "tmdb_id": 747,
+      "title": "Shaun of the Dead",
+      "year": 2004
+    },
+    "must": [],
+    "can": [
+      {
+        "title": "Dawn of the Dead",
+        "year": 1978,
+        "confidence": 0.85,
+        "reason": "A deliberate homage to Romero's zombie-siege structure — the pub standoff mirrors the mall siege beat for beat, right down to specific shots."
+      }
+    ]
+  },
+  {
+    "from": {
+      "media_type": "movie",
+      "tmdb_id": 333339,
+      "title": "Ready Player One",
+      "year": 2018
+    },
+    "must": [],
+    "can": [
+      {
+        "title": "The Shining",
+        "year": 1980,
+        "confidence": 0.85,
+        "reason": "An entire extended sequence recreates the Overlook Hotel in exacting detail — the twins, the elevator, the hedge maze — and lands harder if you recognise it shot for shot."
+      }
+    ]
+  },
+  {
+    "from": {
+      "media_type": "movie",
+      "tmdb_id": 346698,
+      "title": "Barbie",
+      "year": 2023
+    },
+    "must": [],
+    "can": [
+      {
+        "title": "2001: A Space Odyssey",
+        "year": 1968,
+        "confidence": 0.8,
+        "reason": "The opening sequence is a direct parody of 2001's 'Dawn of Man' — same framing, same music cue, same beat where a tool gets flung into the air."
+      }
+    ]
+  },
+  {
+    "from": {
+      "media_type": "movie",
+      "tmdb_id": 4638,
+      "title": "Hot Fuzz",
+      "year": 2007
+    },
+    "must": [],
+    "can": [
+      {
+        "title": "Point Break",
+        "year": 1991,
+        "confidence": 0.85,
+        "reason": "The characters watch and explicitly discuss this film on-screen, and the plot's late turn deliberately mirrors its beats."
+      },
+      {
+        "title": "Bad Boys II",
+        "year": 2003,
+        "confidence": 0.8,
+        "reason": "Referenced by name in dialogue as the model for the film's own over-the-top action-movie climax."
       }
     ]
   }
