@@ -91,8 +91,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     res.setHeader("Cache-Control", cacheControl);
     res.end(JSON.stringify(body));
   } catch (err) {
+    console.error("[tmdb] proxy request failed", err);
     res.statusCode = 500;
     res.setHeader("Cache-Control", "no-store");
-    res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+    // Generic message to the client — the real error is logged server-side,
+    // never shipped to the browser.
+    res.end(JSON.stringify({ error: "could not reach TMDB" }));
   }
 }

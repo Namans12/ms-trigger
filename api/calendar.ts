@@ -23,8 +23,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     res.setHeader("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
     res.end(JSON.stringify({ month, entries }));
   } catch (err) {
+    console.error("[calendar] lookup failed", err);
     res.statusCode = 500;
     res.setHeader("Cache-Control", "no-store");
-    res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+    // Generic message to the client — the real error (which can include raw
+    // Postgres driver detail) is logged server-side, never shipped to the browser.
+    res.end(JSON.stringify({ error: "could not load calendar" }));
   }
 }
