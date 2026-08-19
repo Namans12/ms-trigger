@@ -291,10 +291,30 @@ article lists. `news_sources.py` closes that gap:
    - **Publication section pages** (`ROUNDUP_INDEX_URLS`) — each is scanned for
      links that look like a weekly round-up, and those articles are then scraped
      in full. This is what recovers the other two thirds of each week, and it
-     also picks up the platform each entry names. Override with
-     `NEWS_INDEX_URLS`.
+     also picks up the platform each entry names. Currently: GQ India, Esquire
+     India, Pinkvilla, News18, Republic World. Override with `NEWS_INDEX_URLS`.
    - **`NEWS_URLS`** — explicit article URLs, for publications whose section
      pages render client-side (Vogue India, WION, India TV, ETV Bharat).
+
+   Candidates not yet wired in, found while researching alternates — noted here
+   so the next pass doesn't re-discover them from scratch:
+   - **India TV's RSS feed** (`indiatvnews.com/rssnews/topstory-entertainment.xml`)
+     bypasses that site's JS-shell problem — confirmed live with real article
+     content — but titles arrive wrapped in `<![CDATA[...]]>`, which
+     `_candidates_from_rss`'s tag-stripping regex does not handle correctly, so
+     it needs a small parser fix before it can be added.
+   - **Koimoi** (`/what-to-watch/`) publishes round-ups in exactly this format,
+     but every request from this environment timed out — untested from a real
+     deployment.
+   - **ABP Live** (`news.abplive.com/entertainment/ott`) is a live, real OTT
+     section, but its articles are single-title announcements rather than
+     weekly round-ups — lower yield per fetch than the sources above.
+   - **Wikipedia list pages** (e.g. `List_of_Netflix_India_original_films`) and
+     **JustWatch India** (`justwatch.com/in/new`) are stable and scrape cleanly,
+     but as a title *cross-check* source rather than discovery — useful for a
+     future confidence signal, not a round-up harvester.
+   - Ruled out: **IMDb's India new-releases page** (403, bot-blocked) and
+     **WION's** RSS/tag feeds (403).
 2. Every candidate is then **validated and enriched against TMDB** (real title,
    language, rating, poster, watch providers, links) in `releasebot.enrich_news_candidates`.
    Anything TMDB can't confirm as a near-term movie/show is dropped — that's the

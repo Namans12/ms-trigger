@@ -51,6 +51,20 @@ WION_HTML = """
 </main>
 """
 
+# Republic World-style: real headings interleaved with sidebar/footer links
+# that share the same heading tags as the article body.
+REPUBLIC_WORLD_HTML = """
+<main>
+  <h2>Lanterns</h2>
+  <p>A DC Studios series streaming on JioHotstar.</p>
+  <h2>Blood Sacrifice</h2>
+  <p>Streaming on Netflix.</p>
+  <h3>Get Current Updates on India News, Entertainment News</h3>
+  <h3>Cricket News</h3>
+  <h3>along with</h3>
+</main>
+"""
+
 
 def titles(candidates):
     return [c.title for c in candidates]
@@ -91,6 +105,19 @@ def test_platform_is_read_from_the_paragraph_after_the_heading():
 def test_where_to_watch_label_is_understood():
     got = ns._candidates_from_article(WION_HTML)
     assert platform_of(got, "Pyaar Prema Kalyanam") == "Netflix"
+
+
+@pytest.mark.parametrize(
+    "junk",
+    ["Get Current Updates on India News, Entertainment News", "Cricket News", "along with"],
+)
+def test_republic_world_sidebar_furniture_is_not_a_title(junk):
+    assert junk not in titles(ns._candidates_from_article(REPUBLIC_WORLD_HTML))
+
+
+def test_republic_world_real_titles_survive_alongside_the_furniture():
+    got = titles(ns._candidates_from_article(REPUBLIC_WORLD_HTML))
+    assert "Lanterns" in got and "Blood Sacrifice" in got
 
 
 def test_platform_after_reads_only_past_a_lead_in():
@@ -175,6 +202,10 @@ def test_roundup_links_skip_the_index_itself():
 def test_roundup_links_are_capped():
     many = "".join(f'<a href="/content/ott-releases-{i}">x</a>' for i in range(20))
     assert len(ns._roundup_links("https://example.invalid/section", many, limit=4)) == 4
+
+
+def test_republic_world_is_a_configured_index():
+    assert "https://www.republicworld.com/entertainment/ott" in ns.ROUNDUP_INDEX_URLS
 
 
 # --------------------------------------------------------------------------

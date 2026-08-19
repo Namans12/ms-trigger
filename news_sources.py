@@ -57,6 +57,7 @@ ROUNDUP_INDEX_URLS = (
     "https://www.esquireindia.co.in/entertainment/what-to-stream",
     "https://www.pinkvilla.com/entertainment",
     "https://www.news18.com/entertainment/",
+    "https://www.republicworld.com/entertainment/ott",
 )
 
 # A link on a section page that looks like a weekly OTT round-up.
@@ -130,6 +131,10 @@ STOP_SUBSTRINGS = (
     "sign up", "newsletter", "subscribe", "trending", "you may like",
     "horoscope", "dramas", "comfort you", "follow us", "share this",
     "related", "advertisement", "sponsored", "next story", "top stories",
+    # Republic World's sidebar/footer links share heading tags with its
+    # articles: "Get Current Updates on India News, Entertainment News...".
+    "current updates", "india news", "cricket news", "along with",
+    "entertainment news",
 )
 STOP_EXACT = {
     "movies", "shows", "watch", "what", "when", "where", "south", "hindi",
@@ -333,7 +338,12 @@ def fetch_news_candidates(
     queries: tuple[str, ...] = DEFAULT_NEWS_QUERIES,
     extra_urls: tuple[str, ...] = (),
     index_urls: tuple[str, ...] = ROUNDUP_INDEX_URLS,
-    max_candidates: int = 240,
+    # Raised from 240 when a fifth index (Republic World) started pushing real
+    # weekly candidate counts past the old cap — up to 13 genuine titles were
+    # being silently dropped some weeks. Each candidate still costs at most one
+    # TMDB search, so this is a cost knob, not a correctness one; the log line
+    # below is what actually protects against silent loss now.
+    max_candidates: int = 400,
 ) -> list[Candidate]:
     """Return de-duplicated candidate titles from all configured news sources.
 
