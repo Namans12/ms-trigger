@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useMediaScope, type MediaScope } from '@/hooks/useMediaScope';
 import { useSidebar } from './SidebarContext';
 import { cn } from '@/lib/utils';
-import { Menu, PanelLeft, Film, Tv, LayoutGrid, List, Eye, RefreshCw, LogOut } from 'lucide-react';
+import { Film, Tv, LayoutGrid, List, Eye, RefreshCw, LogOut } from 'lucide-react';
 
 const SCOPE_OPTIONS: { id: MediaScope; label: string; icon: React.ReactNode }[] = [
   { id: 'all', label: 'All', icon: <LayoutGrid size={13} /> },
@@ -103,7 +103,7 @@ function CountPills() {
 
 export function Topbar() {
   const { isAuthenticated } = useAuth();
-  const { toggle, expanded, isMobile } = useSidebar();
+  const { toggle, expanded, isMobile, mobileOpen } = useSidebar();
   const [scope, setScope] = useMediaScope();
   const scopeApplies = useScopeApplies();
   const [refreshing, setRefreshing] = useState(false);
@@ -125,25 +125,19 @@ export function Topbar() {
   return (
     <header className="glass border-b border-border">
       <div className="flex h-topbar items-center gap-3 px-4 sm:px-gutter">
-        <Tooltip delayDuration={400}>
-          <TooltipTrigger asChild>
-            <button
-              onClick={toggle}
-              aria-label={isMobile ? 'Open navigation' : expanded ? 'Collapse sidebar' : 'Expand sidebar'}
-              className="grid size-control shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              {isMobile ? <Menu size={18} /> : <PanelLeft size={18} />}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{isMobile ? 'Menu' : expanded ? 'Collapse sidebar' : 'Expand sidebar'}</TooltipContent>
-        </Tooltip>
-
         {/* The wordmark lives in the sidebar on desktop; on mobile the drawer is
-            hidden, so the topbar carries the mark instead. */}
-        <NavLink to="/" className="flex shrink-0 items-center gap-2 md:hidden">
+            hidden, so the topbar carries it instead — and carries the sidebar's
+            one show/hide control too, so there's a single place to learn
+            instead of a dedicated toggle button. */}
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={isMobile ? (mobileOpen ? 'Close navigation' : 'Open navigation') : expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+          className="flex shrink-0 items-center gap-2 md:hidden"
+        >
           <SpotlightLogo size={26} />
           <span className="font-display text-base font-semibold tracking-tight text-foreground">Spotlight</span>
-        </NavLink>
+        </button>
 
         {scopeApplies && (
           <Segmented

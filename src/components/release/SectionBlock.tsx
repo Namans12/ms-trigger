@@ -1,6 +1,7 @@
 import type { ReleaseItem } from "@/types/digest";
 import type { SectionKey } from "../../../shared/types/release";
 import { SECTION_LABELS, groupByProvider, matchesFilters, type DigestFilters } from "@/lib/digest";
+import type { RatingLookup } from "@/hooks/useRatings";
 import { ProviderGroup } from "./ProviderGroup";
 
 interface SectionBlockProps {
@@ -8,9 +9,10 @@ interface SectionBlockProps {
   items: ReleaseItem[];
   filters: DigestFilters;
   linkBase?: string;
+  ratingFor: RatingLookup;
 }
 
-export function SectionBlock({ section, items, filters, linkBase }: SectionBlockProps) {
+export function SectionBlock({ section, items, filters, linkBase, ratingFor }: SectionBlockProps) {
   const filtered = items.filter((item) => matchesFilters(item, filters));
   if (filtered.length === 0) return null;
 
@@ -23,7 +25,7 @@ export function SectionBlock({ section, items, filters, linkBase }: SectionBlock
       </div>
       <div className="space-y-4">
         {groupByProvider(filtered).map(([provider, providerItems]) => (
-          <ProviderGroup key={provider} provider={provider} items={providerItems} linkBase={linkBase} />
+          <ProviderGroup key={provider} provider={provider} items={providerItems} linkBase={linkBase} ratingFor={ratingFor} />
         ))}
       </div>
     </div>

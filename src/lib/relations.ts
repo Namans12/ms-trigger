@@ -88,11 +88,4 @@ export function relatedToMovie(related: RelatedTitle): Movie {
   };
 }
 
-/** "2022-11-03" -> "3 Nov 2022". Empty string when the date is unknown, so
- * callers can render it unconditionally. */
-export function formatReleaseDate(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const parsed = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return '';
-  return parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
+export { formatDayMonthYear as formatReleaseDate } from './utils';

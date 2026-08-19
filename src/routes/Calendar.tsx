@@ -20,12 +20,12 @@ function shiftMonth(month: string, delta: number): string {
 
 function monthLabel(month: string): string {
   const [y, m] = month.split('-').map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
 function dayLabel(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00`);
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 type KindFilter = 'all' | CalendarKind;

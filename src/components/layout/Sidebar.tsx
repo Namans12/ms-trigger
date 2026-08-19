@@ -1,11 +1,13 @@
 import { NavLink } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import * as SheetPrimitive from '@radix-ui/react-dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { SpotlightLogo } from '@/components/brand/SpotlightLogo';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { useAuth } from '@/hooks/useAuth';
+import { fetchDigest } from '@/lib/api';
 import { useSidebar } from './SidebarContext';
-import { cn } from '@/lib/utils';
+import { cn, formatDayMonthYearTime } from '@/lib/utils';
 import {
   Home as HomeIcon,
   CalendarDays,
@@ -15,8 +17,7 @@ import {
   Clock,
   Eye,
   FolderOpen,
-  PanelLeftClose,
-  PanelLeftOpen,
+  Radio,
   LogIn,
 } from 'lucide-react';
 
@@ -56,8 +57,15 @@ function useNavGroups(): { heading: string; items: NavItem[] }[] {
   ];
 }
 
-/** A single nav row. Collapsed and expanded share the same 40px box at the same
- *  left offset, so labels appear beside icons that never move. */
+/** A single nav row.
+ *
+ *  The row's own layout (padding, gap, icon position) never changes between
+ *  collapsed and expanded — only the AISDE's width does, and that's already a
+ *  smooth CSS transition. Label and badge are always in the DOM; when the
+ *  rail is narrow they simply sit past its overflow-hidden edge, so they
+ *  reveal and hide in lockstep with the same width animation instead of
+ *  popping in/out the instant `expanded` flips (which is what made a
+ *  collapse/expand look like it snapped rather than animated). */
 function SidebarLink({ item, expanded, onNavigate }: { item: NavItem; expanded: boolean; onNavigate?: () => void }) {
   const link = (
     <NavLink
@@ -66,8 +74,7 @@ function SidebarLink({ item, expanded, onNavigate }: { item: NavItem; expanded: 
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'group relative flex items-center h-rail-item rounded-lg text-sm font-medium transition-colors duration-200',
-          expanded ? 'w-full gap-3 pr-3' : 'w-rail-item justify-center',
+          'group relative flex items-center h-rail-item w-full gap-3 pr-3 overflow-hidden rounded-lg text-sm font-medium transition-colors duration-200',
           isActive
             ? 'bg-accent/12 text-accent'
             : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
@@ -86,20 +93,16 @@ function SidebarLink({ item, expanded, onNavigate }: { item: NavItem; expanded: 
             )}
           />
           <span className="grid place-items-center size-rail-item shrink-0">{item.icon}</span>
-          {expanded && (
-            <>
-              <span className="flex-1 truncate">{item.label}</span>
-              {item.count != null && item.count > 0 && (
-                <span
-                  className={cn(
-                    'shrink-0 min-w-5 px-1.5 h-5 grid place-items-center rounded-full text-[10px] font-semibold tabular-nums',
-                    isActive ? 'bg-accent/20 text-accent' : 'bg-secondary text-muted-foreground',
-                  )}
-                >
-                  {item.count}
-                </span>
+          <span className="flex-1 truncate">{item.label}</span>
+          {item.count != null && item.count > 0 && (
+            <span
+              className={cn(
+                'shrink-0 min-w-5 px-1.5 h-5 grid place-items-center rounded-full text-[10px] font-semibold tabular-nums',
+                isActive ? 'bg-accent/20 text-accent' : 'bg-secondary text-muted-foreground',
               )}
-            </>
+            >
+              {item.count}
+            </span>
           )}
         </>
       )}
@@ -119,32 +122,58 @@ function SidebarLink({ item, expanded, onNavigate }: { item: NavItem; expanded: 
   );
 }
 
+/** Digest freshness, promoted from a Home-only line to sidebar chrome so it's
+ *  visible from every page. Reuses the same ['digest','current'] query Home
+ *  fetches — same cache entry, so on Home this costs nothing extra, and
+ *  elsewhere it's one small cached read, not a live TMDB call. Renders
+ *  nothing until the digest has loaded at least once this session, rather
+ *  than reserving space for it up front. */
+function GeneratedLine() {
+  const { data } = useQuery({
+    queryKey: ['digest', 'current'],
+    queryFn: fetchDigest,
+    staleTime: 10 * 60_000,
+  });
+  if (!data?.generated_at) return null;
+
+  return (
+    <p className="mb-3 flex items-center gap-1.5 truncate px-1 text-[11px] text-muted-foreground">
+      <Radio size={11} className="shrink-0 text-accent" />
+      <span className="truncate">Generated {formatDayMonthYearTime(data.generated_at)}</span>
+    </p>
+  );
+}
+
 /** The drawer body, shared by the desktop column and the mobile sheet. */
 function SidebarBody({ expanded, onNavigate }: { expanded: boolean; onNavigate?: () => void }) {
   const groups = useNavGroups();
   const { isAuthenticated } = useAuth();
-  const { expanded: desktopExpanded, toggleExpanded, isMobile } = useSidebar();
+  const { toggle } = useSidebar();
 
   return (
     <div className="flex flex-col h-full">
-      {/* Brand row matches the topbar's 64px so the two align across the seam. */}
-      <div
-        className={cn(
-          'h-topbar flex items-center shrink-0 border-b border-border',
-          expanded ? 'px-4 gap-3' : 'justify-center',
-        )}
+      {/* --topbar-h matches the topbar's own row height exactly (the "All /
+          Movies / Shows" row), so the two line up across the seam. The whole
+          row is the sidebar's one show/hide control — desktop expands/
+          collapses the rail, mobile opens/closes the drawer — so there's a
+          single place to learn instead of a dedicated button. No hover
+          background: this is chrome people glance at, not a button that
+          needs to announce itself on every mouse-over. */}
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+        className="flex h-topbar w-full items-center gap-3 overflow-hidden border-b border-border px-4"
       >
         <span className="grid place-items-center size-rail-item shrink-0">
           <SpotlightLogo size={28} />
         </span>
-        {expanded && (
-          <span className="font-display text-lg font-semibold tracking-tight text-foreground truncate">
-            Spotlight
-          </span>
-        )}
-      </div>
+        <span className="font-display text-lg font-semibold tracking-tight text-foreground truncate">
+          Spotlight
+        </span>
+      </button>
 
-      <nav className="flex-1 overflow-y-auto hide-scrollbar py-4">
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar py-4">
         {groups.map((group, i) => (
           <div key={group.heading} className={cn(expanded ? 'px-4' : 'px-4', i > 0 && 'mt-6')}>
             {expanded ? (
@@ -164,38 +193,19 @@ function SidebarBody({ expanded, onNavigate }: { expanded: boolean; onNavigate?:
       </nav>
 
       <div className={cn('shrink-0 border-t border-border py-4', expanded ? 'px-4' : 'px-4')}>
+        {expanded && <GeneratedLine />}
+
         {!isAuthenticated && (
           <NavLink
             to="/login"
             onClick={onNavigate}
-            className={cn(
-              'flex items-center h-rail-item rounded-lg bg-accent text-accent-foreground text-sm font-semibold hover:brightness-110 transition-all mb-2',
-              expanded ? 'w-full gap-3 pr-3' : 'w-rail-item justify-center',
-            )}
+            className="flex h-rail-item w-full items-center gap-3 overflow-hidden rounded-lg bg-accent pr-3 text-sm font-semibold text-accent-foreground transition-all hover:brightness-110"
           >
             <span className="grid place-items-center size-rail-item shrink-0">
               <LogIn size={18} />
             </span>
-            {expanded && <span className="truncate">Sign in</span>}
+            <span className="truncate">Sign in</span>
           </NavLink>
-        )}
-
-        {/* Collapse control lives at the bottom of the drawer on desktop; the
-            mobile sheet closes from the topbar button and the overlay instead. */}
-        {!isMobile && (
-          <button
-            onClick={toggleExpanded}
-            aria-label={desktopExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-            className={cn(
-              'flex items-center h-rail-item rounded-lg text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors',
-              expanded ? 'w-full gap-3 pr-3' : 'w-rail-item justify-center',
-            )}
-          >
-            <span className="grid place-items-center size-rail-item shrink-0">
-              {desktopExpanded ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-            </span>
-            {expanded && <span className="truncate">Collapse</span>}
-          </button>
         )}
       </div>
     </div>

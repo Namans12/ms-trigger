@@ -1,16 +1,18 @@
 import { type ReleaseItem, toMovie } from "@/types/digest";
 import { PosterCard } from "./PosterCard";
-import { useRatings } from "@/hooks/useRatings";
+import type { RatingLookup } from "@/hooks/useRatings";
 import { useWatchlistContext } from "@/contexts/WatchlistContext";
 
 interface ReleaseGridProps {
   items: ReleaseItem[];
   linkBase?: string; // e.g. "/title" -> links to `${linkBase}/${mediaType}/${id}`
+  // Passed down from the page rather than fetched here: a page can render
+  // many grids (one per provider group), and calling useRatings per grid
+  // turns one page load into 10-20 separate ratings requests instead of one.
+  ratingFor: RatingLookup;
 }
 
-export function ReleaseGrid({ items, linkBase }: ReleaseGridProps) {
-  // One cache-only batch request for the whole grid — no OMDb budget spent.
-  const ratingFor = useRatings(items);
+export function ReleaseGrid({ items, linkBase, ratingFor }: ReleaseGridProps) {
   const wl = useWatchlistContext();
 
   return (

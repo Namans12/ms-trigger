@@ -8,7 +8,9 @@ import { SectionBlock } from '@/components/release/SectionBlock';
 import { Toolbar } from '@/components/layout/Toolbar';
 import { Segmented } from '@/components/ui/segmented';
 import { useMediaScope } from '@/hooks/useMediaScope';
-import { Loader2, Radio, PlayCircle, CalendarClock } from 'lucide-react';
+import { useRatings } from '@/hooks/useRatings';
+import { formatDayMonthYear } from '@/lib/utils';
+import { Loader2, PlayCircle, CalendarClock } from 'lucide-react';
 
 type WindowKey = 'out_now' | 'coming_up';
 
@@ -40,6 +42,11 @@ export default function Home() {
   }
 
   const win = data?.[windowKey];
+  // One batch ratings request for the whole window, not one per provider
+  // group — see useRatings' own comment. Every section/provider grid below
+  // shares this single lookup instead of each fetching its own subset.
+  const allWindowItems = win ? Object.values(win.sections).flat().map(fromDigestDTO) : [];
+  const ratingFor = useRatings(allWindowItems);
   const filters = { mediaType, platform, search };
   const platforms = data
     ? allProviders([
@@ -92,14 +99,12 @@ export default function Home() {
 
       {data && win && (
         <>
+          {/* "Generated ..." now lives in the sidebar (visible from every
+              page); this line keeps just what's specific to the window being
+              viewed on this page. */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <Radio size={12} className="shrink-0 text-accent" />
-              Generated {new Date(data.generated_at).toLocaleString()}
-            </span>
-            <span aria-hidden className="hidden h-3 w-px bg-border sm:block" />
             <span className="tabular-nums">
-              {win.start} → {win.end}
+              {formatDayMonthYear(win.start)} → {formatDayMonthYear(win.end)}
             </span>
           </div>
 
@@ -111,6 +116,7 @@ export default function Home() {
                 items={(win.sections[s] || []).map(fromDigestDTO)}
                 filters={filters}
                 linkBase="/title"
+                ratingFor={ratingFor}
               />
             ))}
             {!anyResults && (
