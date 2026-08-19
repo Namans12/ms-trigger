@@ -214,74 +214,126 @@ class TmdbClient:
 # Membership is tested on the *normalized* name, so every spelling variant
 # ("Prime Video", "Amazon Prime Video with Ads") collapses to one entry here.
 #
-# Keyed by region, because that fallback is only sound for services the region's
-# viewers can actually subscribe to. Stamping an India digest with "Hulu" names a
-# service the reader cannot buy — and such a title has no India date either, so
-# it is a false positive twice over.
-STREAMING_NETWORKS_BY_REGION = {
-    "IN": {
-        "Netflix", "Amazon Prime", "JioHotstar", "Apple TV+", "ZEE5", "SonyLIV",
-        "Sun NXT", "aha", "Hoichoi", "Amazon MX Player", "Crunchyroll", "Viki",
-        "Lionsgate Play", "Discovery+", "YouTube", "Viu", "MUBI",
-        "BookMyShow Stream", "Chaupal", "ManoramaMAX", "Planet Marathi",
-        "Eros Now", "STAGE", "ULLU",
-    },
+# One global set, deliberately not keyed by region. An earlier version gated this
+# by region so an India digest would never name a service like Hulu — correct
+# when the site was India-only, wrong now that it is global: a reader outside
+# India is better served by "Hulu" than by "Platform TBA". Naming a platform the
+# reader may not be able to subscribe to is now an accepted trade, because the
+# alternative is withholding the only availability information we have.
+STREAMING_NETWORKS = {
+    # India
+    "JioHotstar", "ZEE5", "SonyLIV", "Sun NXT", "aha", "Hoichoi",
+    "Amazon MX Player", "Lionsgate Play", "BookMyShow Stream", "Chaupal",
+    "ManoramaMAX", "Planet Marathi", "Eros Now", "STAGE", "ULLU",
+    # Global / multi-region
+    "Netflix", "Amazon Prime", "Apple TV+", "Disney+", "HBO Max", "Paramount+",
+    "Peacock", "Hulu", "Crunchyroll", "Viki", "Discovery+", "YouTube", "Viu",
+    "MUBI", "Tubi", "Stan", "BritBox", "AMC+", "Starz", "Showtime", "ITVX",
+    "BBC iPlayer", "Channel 4", "SkyShowtime", "Rakuten Viki", "Shahid",
 }
 
-# Services that exist somewhere but not in every region. Used only for regions
-# we have no explicit list for, where dropping everything would be worse.
-STREAMING_NETWORKS_GLOBAL = STREAMING_NETWORKS_BY_REGION["IN"] | {
-    "HBO Max", "Paramount+", "Peacock", "Hulu", "Tubi", "Stan",
-}
-
-
-def streamable_networks(region: str) -> set[str]:
-    """Networks whose name may stand in as a platform for `region`."""
-    return STREAMING_NETWORKS_BY_REGION.get(region, STREAMING_NETWORKS_GLOBAL)
-
-
-# TMDB splits availability across buckets. "flatrate" (included with a
-# subscription), "ads" (free with adverts) and "free" all mean "you can watch it
-# on this service right now", so all three count as a platform. "rent"/"buy" are
-# deliberately excluded — paying per title is not the same as the title having
-# landed on a service, and conflating them is what makes a radar untrustworthy.
+# TMDB splits per-title availability across buckets. These mean "included with a
+# subscription / free to watch right now".
 AVAILABILITY_BUCKETS = ("flatrate", "ads", "free")
+# These mean "you can watch it, but you pay per title".
+PURCHASE_BUCKETS = ("rent", "buy")
+
+BUY_RENT_SUFFIX = " (Buy/Rent)"
+# Used when a title is known to be purchase-only but we have no usable store
+# name — better than "Platform TBA", which implies we know nothing at all.
+GENERIC_BUY_RENT = "Buy/Rent"
+# A title can be purchasable in 30+ territories; listing every store is noise.
+MAX_PROVIDERS = 3
+
+
+def _names_in_region(details: dict[str, Any], region: str, buckets: tuple[str, ...]) -> list[str]:
+    """One entry per listing, empty string included.
+
+    A nameless entry is kept deliberately: for the purchase buckets, "there is a
+    listing here but we cannot name the store" still means the title is buyable,
+    which is worth saying. `normalize_platforms` drops the blanks before any name
+    is shown, so this never yields a phantom platform.
+    """
+    payload = details.get("watch/providers", {}).get("results", {}).get(region, {})
+    return [
+        entry.get("provider_name") or ""
+        for bucket in buckets
+        for entry in payload.get(bucket, []) or []
+    ]
+
+
+def _names_any_region(details: dict[str, Any], buckets: tuple[str, ...]) -> list[str]:
+    """Provider names from every territory, most widely-carried first.
+
+    Ranking by territory count keeps the answer stable and meaningful: a store
+    that carries a title in 30 countries is a better one-line answer than one
+    that carries it in a single small market.
+    """
+    results = details.get("watch/providers", {}).get("results", {}) or {}
+    counts: dict[str, int] = defaultdict(int)
+    for region in results:
+        # A store listed in both rent and buy for one region still counts once.
+        for name in set(_names_in_region(details, region, buckets)):
+            counts[name] += 1
+    return [name for name, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
 
 
 def flatrate_providers(details: dict[str, Any], region: str) -> tuple[str, ...]:
-    """Canonical platform names a title is watchable on in `region`.
+    """Platforms a title is watchable on with a subscription in `region`.
 
     Reads every availability bucket, not just `flatrate` — an ad-tier-only or
     free-tier-only title used to come back empty and render as "Platform TBA".
     """
-    region_payload = details.get("watch/providers", {}).get("results", {}).get(region, {})
-    names: list[str] = []
-    for bucket in AVAILABILITY_BUCKETS:
-        for entry in region_payload.get(bucket, []) or []:
-            name = entry.get("provider_name")
-            if name:
-                names.append(name)
-    return normalize_platforms(names)
+    return normalize_platforms(_names_in_region(details, region, AVAILABILITY_BUCKETS))
+
+
+def _tag_buy_rent(names: list[str]) -> tuple[str, ...]:
+    """Label purchase-only availability so it can never read as a subscription.
+
+    Telling a reader "Amazon Prime" when the title is really a paid rental there
+    is a worse error than telling them nothing, so the tag is not optional.
+    """
+    tagged = tuple(f"{n}{BUY_RENT_SUFFIX}" for n in normalize_platforms(names)[:MAX_PROVIDERS])
+    # Purchase availability with no usable store name still beats "Platform TBA".
+    return tagged or ((GENERIC_BUY_RENT,) if names else ())
 
 
 def rent_buy_providers(details: dict[str, Any], region: str) -> tuple[str, ...]:
-    """Stores where a title can be bought or rented, as a distinct fallback.
+    """Stores where a title can be bought or rented in `region`."""
+    return _tag_buy_rent(_names_in_region(details, region, PURCHASE_BUCKETS))
 
-    Toy Story 5 has a real digital release date in India but is buy/rent only
-    this week — no subscription tier carries it yet. Previously that meant
-    empty `providers`, which rendered as "Platform TBA" even though the title
-    genuinely is available, just not by subscription. Tagged rather than merged
-    into the untagged list: telling a reader "Netflix" when the title is really
-    a ₹200 rental on Prime Video is a worse error than no platform at all.
+
+def resolve_providers(
+    details: dict[str, Any], region: str, fallback: str | None = None
+) -> tuple[str, ...]:
+    """Best available answer to "where can I watch this?", widest-relevance first.
+
+    The order encodes a preference, not a guess: a subscription in the reader's
+    own region is the most useful answer, and a store in some other territory is
+    the least — but all of them beat "Platform TBA". The cross-region steps exist
+    because TMDB's India provider data is thin while its US/UK data is rich:
+    Toy Story 5 carries rent/buy entries in 36 territories and none in India, so
+    a region-only lookup reported nothing for a film that was plainly available.
     """
-    region_payload = details.get("watch/providers", {}).get("results", {}).get(region, {})
-    names: list[str] = []
-    for bucket in ("rent", "buy"):
-        for entry in region_payload.get(bucket, []) or []:
-            name = entry.get("provider_name")
-            if name:
-                names.append(name)
-    return tuple(f"{name} (Buy/Rent)" for name in normalize_platforms(names))
+    if subs := flatrate_providers(details, region):
+        return subs[:MAX_PROVIDERS]
+    if purchase := rent_buy_providers(details, region):
+        return purchase
+    if subs_anywhere := normalize_platforms(_names_any_region(details, AVAILABILITY_BUCKETS)):
+        return subs_anywhere[:MAX_PROVIDERS]
+    if purchase_anywhere := _tag_buy_rent(_names_any_region(details, PURCHASE_BUCKETS)):
+        return purchase_anywhere
+    # No availability recorded anywhere. The network that made it is the last
+    # real signal — a brand-new title often has one before it has providers.
+    networks = normalize_platforms(n.get("name", "") for n in details.get("networks", []))
+    if from_network := tuple(n for n in networks if n in STREAMING_NETWORKS):
+        return from_network[:MAX_PROVIDERS]
+    if fallback:
+        # News-scraped hint from news_sources — normalized so its curated
+        # spelling matches the TMDB-derived names.
+        hint = normalize_platform(fallback)
+        return (hint,) if hint else ()
+    return ()
 
 
 def digital_release_date(details: dict[str, Any], region: str) -> str | None:
@@ -450,7 +502,7 @@ def fetch_ott_movies(
     for raw, details in zip(ordered, details_list):
         movie_id = raw["id"]
         best_date = digital_release_date(details, tmdb.region)
-        providers = flatrate_providers(details, tmdb.region) or rent_buy_providers(details, tmdb.region)
+        providers = resolve_providers(details, tmdb.region)
 
         if not best_date:
             if movie_id in confirmed_ids:
@@ -498,7 +550,7 @@ def fetch_ott_shows(
 
     items: list[ReleaseItem] = []
     for raw, details in zip(raws, details_list):
-        providers = _providers_from_details(details, tmdb.region, None)
+        providers = resolve_providers(details, tmdb.region)
         if not providers:
             continue  # linear-TV-only / not a streaming release in this region
         items.append(normalize_tv(raw, providers))
@@ -639,24 +691,6 @@ def _match_search_result(candidate_title: str, results: list[dict[str, Any]]) ->
     return best
 
 
-def _providers_from_details(
-    details: dict[str, Any], region: str, fallback: str | None
-) -> tuple[str, ...]:
-    """Platforms for an already-fetched details payload."""
-    providers = flatrate_providers(details, region)
-    if not providers:
-        providers = rent_buy_providers(details, region)
-    if not providers:
-        networks = normalize_platforms(n.get("name", "") for n in details.get("networks", []))
-        providers = tuple(n for n in networks if n in streamable_networks(region))
-    if not providers and fallback:
-        # News-scraped hint from news_sources — normalize it too, otherwise its
-        # curated spelling diverges from the TMDB-derived names.
-        hint = normalize_platform(fallback)
-        providers = (hint,) if hint else ()
-    return providers
-
-
 def _item_from_search(
     result: dict[str, Any],
     release_date: str,
@@ -775,7 +809,7 @@ def enrich_news_candidates(
         except Exception:  # pragma: no cover - network resilience
             return None
 
-        providers = _providers_from_details(details, tmdb.region, cand.platform)
+        providers = resolve_providers(details, tmdb.region, cand.platform)
 
         if media_type == "movie":
             ott_date = digital_release_date(details, tmdb.region)

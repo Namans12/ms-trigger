@@ -47,23 +47,23 @@ def test_rent_buy_names_are_still_canonicalized():
     assert rb.rent_buy_providers(details, "IN") == ("Amazon Prime (Buy/Rent)",)
 
 
-def test_providers_from_details_prefers_subscription_over_buy_rent():
+def test_resolve_prefers_subscription_over_buy_rent():
     """A title with BOTH a subscription tier and a rent/buy tier is on the
     service — the rent/buy tag would misleadingly downgrade it."""
     details = watch_providers(flatrate=("Netflix",), buy=("Apple TV+",))
-    assert rb._providers_from_details(details, "IN", None) == ("Netflix",)
+    assert rb.resolve_providers(details, "IN") == ("Netflix",)
 
 
-def test_providers_from_details_falls_back_to_buy_rent_before_network_guess():
+def test_resolve_falls_back_to_buy_rent_before_network_guess():
     """Real TMDB rent/buy data beats the network-name heuristic."""
     details = watch_providers(buy=("Amazon Prime",), networks=("ZEE5",))
-    assert rb._providers_from_details(details, "IN", None) == ("Amazon Prime (Buy/Rent)",)
+    assert rb.resolve_providers(details, "IN") == ("Amazon Prime (Buy/Rent)",)
 
 
-def test_providers_from_details_with_nothing_at_all_stays_empty():
+def test_resolve_with_nothing_at_all_stays_empty():
     """A Beautiful Obsession: no subscription, no rent/buy, no known network."""
     details = watch_providers(networks=("Some Broadcast Channel",))
-    assert rb._providers_from_details(details, "IN", None) == ()
+    assert rb.resolve_providers(details, "IN") == ()
 
 
 def test_buy_rent_only_movie_forms_its_own_message_category():
@@ -87,3 +87,75 @@ def test_still_falls_through_to_platform_tba_when_truly_unknown():
         tmdb_url="https://example.invalid", poster_url=None, providers=(),
     )
     assert "Platform TBA" in rb.group_by_provider([item])
+
+
+# --------------------------------------------------------------------------
+# Cross-region fallback — the step that actually resolves Toy Story 5.
+# TMDB's India provider data is thin while its US/UK data is rich: Toy Story 5
+# carries rent/buy entries in 36 territories and none in India, so a
+# region-only lookup reported nothing for a film that was plainly available.
+# --------------------------------------------------------------------------
+
+def multi_region(regions: dict):
+    """regions: {"US": {"rent": [...], "flatrate": [...]}, ...}"""
+    return {
+        "watch/providers": {
+            "results": {
+                r: {b: [{"provider_name": p} for p in names] for b, names in buckets.items()}
+                for r, buckets in regions.items()
+            }
+        },
+        "networks": [],
+    }
+
+
+def test_toy_story_5_shape_resolves_from_other_territories():
+    """No India data at all; rent/buy in US, GB, AU."""
+    details = multi_region({
+        "US": {"rent": ["Amazon Video", "Apple TV Store", "Google Play Movies"]},
+        "GB": {"rent": ["Apple TV Store", "Rakuten TV"]},
+        "AU": {"rent": ["Apple TV Store"]},
+    })
+    got = rb.resolve_providers(details, "IN")
+    assert got, "must not come back empty when 3 territories list it"
+    assert all(g.endswith(" (Buy/Rent)") for g in got), got
+    # Apple TV Store is in all three territories, so it ranks first.
+    assert got[0].startswith("Apple TV"), got
+
+
+def test_own_region_subscription_still_wins_over_foreign_data():
+    details = multi_region({
+        "IN": {"flatrate": ["JioHotstar"]},
+        "US": {"flatrate": ["Hulu"], "rent": ["Amazon Video"]},
+    })
+    assert rb.resolve_providers(details, "IN") == ("JioHotstar",)
+
+
+def test_own_region_buy_rent_wins_over_foreign_subscription():
+    """A store the reader can actually use beats a service they cannot."""
+    details = multi_region({
+        "IN": {"rent": ["Amazon Prime"]},
+        "US": {"flatrate": ["Hulu"]},
+    })
+    assert rb.resolve_providers(details, "IN") == ("Amazon Prime (Buy/Rent)",)
+
+
+def test_foreign_subscription_beats_foreign_purchase():
+    details = multi_region({
+        "US": {"flatrate": ["Hulu"]},
+        "GB": {"rent": ["Sky Store"]},
+    })
+    assert rb.resolve_providers(details, "IN") == ("Hulu",)
+
+
+def test_provider_list_is_capped():
+    details = multi_region({
+        "US": {"flatrate": ["Netflix", "Hulu", "Peacock", "Paramount+", "HBO Max"]},
+    })
+    assert len(rb.resolve_providers(details, "IN")) <= rb.MAX_PROVIDERS
+
+
+def test_purchase_with_no_usable_store_name_falls_back_to_generic_label():
+    """Blank provider names still mean "you can buy this" — better than TBA."""
+    details = {"watch/providers": {"results": {"IN": {"rent": [{"provider_name": ""}]}}}}
+    assert rb.resolve_providers(details, "IN") == (rb.GENERIC_BUY_RENT,)

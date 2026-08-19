@@ -237,35 +237,37 @@ def test_show_without_any_platform_is_dropped_as_linear_tv():
 
 
 # --------------------------------------------------------------------------
-# Region gating: a platform the reader cannot subscribe to is not availability.
+# Platform naming is global: any real service beats "Platform TBA".
 # --------------------------------------------------------------------------
 
-def test_hulu_is_not_an_india_platform():
-    assert "Hulu" not in rb.streamable_networks("IN")
-    assert "Netflix" in rb.streamable_networks("IN")
+def test_streaming_networks_is_global_not_india_only():
+    """The site is worldwide, so a non-India service is a legitimate answer."""
+    for name in ("Netflix", "Hulu", "HBO Max", "Peacock", "ZEE5", "JioHotstar"):
+        assert name in rb.STREAMING_NETWORKS, name
 
 
-def test_unknown_region_keeps_the_permissive_global_list():
-    assert "Hulu" in rb.streamable_networks("US")
-
-
-def test_network_fallback_refuses_a_non_india_network():
-    """The Girls: A Khloé Kardashian Project — Hulu-only, no IN availability."""
-    details = tv_payload(networks=("Hulu",))
-    assert rb._providers_from_details(details, "IN", None) == ()
-    assert rb._providers_from_details(details, "US", None) == ("Hulu",)
+def test_network_fallback_accepts_a_non_india_network():
+    """Was previously refused. A reader outside India is better served by
+    "Hulu" than by nothing at all."""
+    assert rb.resolve_providers(tv_payload(networks=("Hulu",)), "IN") == ("Hulu",)
 
 
 def test_network_fallback_accepts_an_india_network():
-    assert rb._providers_from_details(tv_payload(networks=("ZEE5",)), "IN", None) == ("ZEE5",)
+    assert rb.resolve_providers(tv_payload(networks=("ZEE5",)), "IN") == ("ZEE5",)
 
 
 def test_real_region_availability_beats_the_network_fallback():
     details = tv_payload(networks=("Hulu",), providers_in=("JioHotstar",))
-    assert rb._providers_from_details(details, "IN", None) == ("JioHotstar",)
+    assert rb.resolve_providers(details, "IN") == ("JioHotstar",)
 
 
 def test_news_hint_is_normalized_and_used_only_as_a_last_resort():
-    assert rb._providers_from_details(tv_payload(), "IN", "Disney+") == ("JioHotstar",)
+    assert rb.resolve_providers(tv_payload(), "IN", "Disney+") == ("JioHotstar",)
     # A real provider wins over the hint.
-    assert rb._providers_from_details(tv_payload(providers_in=("Netflix",)), "IN", "ZEE5") == ("Netflix",)
+    assert rb.resolve_providers(tv_payload(providers_in=("Netflix",)), "IN", "ZEE5") == ("Netflix",)
+
+
+def test_a_broadcast_only_network_is_still_not_a_streaming_platform():
+    """PBS/TLC air a show but you cannot stream it there — the network fallback
+    only accepts services that are themselves streaming platforms."""
+    assert rb.resolve_providers(tv_payload(networks=("PBS",)), "IN") == ()
