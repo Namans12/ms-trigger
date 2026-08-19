@@ -20,6 +20,8 @@ Both parts are split into three sections, grouped by streaming platform:
 - 🌍 **English OTT** — movies + shows
 - 🔥 **Popular (Other Languages)** — any-language releases above a popularity threshold (big Tamil / Telugu / Korean / Spanish titles surface automatically)
 
+Within each section, titles are grouped by platform. A title that's out on a per-title purchase rather than a subscription (buy/rent only — no service carries it with a subscription yet) gets its own **"⟨Service⟩ (Buy/Rent)"** group instead of either vanishing or being folded into a real subscription platform it isn't actually on.
+
 Plus, on the site itself: Browse (trending/popular rows), Search (full TMDB multi-search), and a **My List** section (watchlist, watch later, watched, custom lists) — private per Google account, synced to Postgres.
 
 ## Architecture
@@ -88,7 +90,7 @@ Using your own Gmail (or any account) as the sender needs an **app password**, n
 
 1. Create a free project at https://neon.tech (pick a region close to your Vercel deployment region).
 2. Copy the pooled connection string.
-3. Run the migrations once, in order: `0001_init.sql`, `0002_title_ratings.sql`, `0003_title_relations.sql`, `0004_title_relations_reverse_index.sql`, `0005_title_relation_lookups.sql`, `0006_calendar_entries_poster.sql`, `0007_multi_user_accounts.sql` — e.g. `psql "$DATABASE_URL" -f migrations/0001_init.sql` for each (or via a Python one-liner with `psycopg` if you don't have `psql` installed).
+3. Run the migrations once, in order: `0001_init.sql`, `0002_title_ratings.sql`, `0003_title_relations.sql`, `0004_title_relations_reverse_index.sql`, `0005_title_relation_lookups.sql`, `0006_calendar_entries_poster.sql`, `0007_multi_user_accounts.sql`, `0008_release_items_month_index.sql`, `0009_calendar_language_iso.sql` — e.g. `psql "$DATABASE_URL" -f migrations/0001_init.sql` for each (or via a Python one-liner with `psycopg` if you don't have `psql` installed).
 4. Link the seeded calendar rows to TMDB so they get posters and become clickable: `python scripts/backfill_calendar_tmdb.py` (safe to re-run; it only touches rows still missing a `tmdb_id`).
 5. Keep the calendar populated past the seeded window: `python scripts/sync_calendar_tmdb.py --months 6`. Pulls region-aware theatrical dates (`/discover/movie` with `region` + `with_release_type=2|3` + `release_date.gte/lte` — not `primary_release_date.*`, which ignores `region` entirely and returns global junk) and TV premieres, and only ever *enriches* existing rows — a curated editorial row keeps its own platform and details and merely gains a poster and a `tmdb_id`. Queries one calendar month at a time rather than the whole window at once — TMDB caps each `/discover` call at a fixed page limit regardless of true match count, so a single big-range query lets a handful of popular titles anywhere in it crowd out an entire other month's releases before the cap even applies (confirmed directly: a 6-month single-query window had 178 real matches behind a 60-result cap, silently dropping 118). TV premieres are additionally scoped by `--tv-countries` (default `IN,US,GB`) — TMDB is crowdsourced and global TV volume runs into the hundreds a month, almost all obscure local productions; this trades missing an occasional big non-English hit for not drowning the calendar in noise. Runs nightly (see below).
 4. Optionally seed the editorial calendar: `python scripts/seed_calendar_csv.py`.
@@ -138,7 +140,10 @@ And one repo **variable** (not secret) under the same page's "Variables" tab:
 | `LANGUAGES` | `hi,en` | Dedicated language sections |
 | `POPULAR_MIN_POPULARITY` | `25` | Threshold for the any-language Popular section |
 | `NEWS_ENABLED` | `true` | Augment TMDB with titles scraped from India OTT round-ups (see below) |
-| `NEWS_URLS` | — | Comma-separated extra article URLs to scrape (optional; e.g. a specific GQ/Deccan Herald round-up) |
+| `NEWS_URLS` | — | Comma-separated extra article URLs to scrape (optional; for publications whose section pages render client-side, e.g. Vogue India / WION / India TV) |
+| `NEWS_INDEX_URLS` | built-in list | Comma-separated publication *section* pages to discover weekly round-ups from. Overrides `news_sources.ROUNDUP_INDEX_URLS` |
+| `TMDB_CACHE_DIR` | — | Cache TMDB responses here. For development only — see [Staging](#staging-running-the-pipeline-without-touching-production) |
+| `TMDB_CACHE_TTL_SECONDS` | `21600` | How long a cached TMDB response stays fresh (6 hours) |
 | `RELEASE_TIMEZONE` | `Asia/Kolkata` | Timezone used for date windows |
 | `DRY_RUN` | `false` | Skip Telegram/email, still refresh Postgres |
 | `USE_SAMPLE_DATA` | `false` | Generate sample data without a TMDB key (local testing) |
@@ -277,19 +282,91 @@ TMDB's India OTT discover feeds are incomplete and often lag the real streaming
 calendar, so the digest used to miss titles that every "OTT releases this week"
 article lists. `news_sources.py` closes that gap:
 
-1. It harvests candidate titles from editorially-curated Indian OTT round-ups —
-   **evergreen** via Google News India RSS (auto-updates weekly, no per-week URL
-   maintenance), plus any extra article URLs you set in `NEWS_URLS`.
+1. It harvests candidate titles from editorially-curated Indian OTT round-ups
+   via three **evergreen** routes (no per-week URL maintenance):
+   - **Google News India RSS** — the widest publication reach, but *headlines
+     only*. Its `<link>` is a `news.google.com/rss/articles/…` interstitial that
+     resolves via JavaScript, so the article body is unreachable from there. A
+     round-up headline names 3–5 titles; its body lists 10–15.
+   - **Publication section pages** (`ROUNDUP_INDEX_URLS`) — each is scanned for
+     links that look like a weekly round-up, and those articles are then scraped
+     in full. This is what recovers the other two thirds of each week, and it
+     also picks up the platform each entry names. Override with
+     `NEWS_INDEX_URLS`.
+   - **`NEWS_URLS`** — explicit article URLs, for publications whose section
+     pages render client-side (Vogue India, WION, India TV, ETV Bharat).
 2. Every candidate is then **validated and enriched against TMDB** (real title,
    language, rating, poster, watch providers, links) in `releasebot.enrich_news_candidates`.
    Anything TMDB can't confirm as a near-term movie/show is dropped — that's the
    quality gate that filters out the noise scraping inevitably picks up.
-3. Confirmed titles are merged into the Hindi / English / Popular sections
+3. Each confirmed title is dated by its **OTT** date, not the primary date
+   `/search` returns. For a movie that means the digital (type 4) release date;
+   a movie with no digital date and no providers is **dropped** rather than
+   filed under its theatrical date — that is what keeps cinema-only releases
+   (7 Dogs, Irumudi, Khalifa) out of an OTT digest. For a returning series the
+   date comes from `/tv/{id}/season/{n}`, because `first_air_date` is when the
+   *series* began (Outer Banks: 2020, not its 2026 season 5).
+4. Confirmed titles are merged into the Hindi / English / Popular sections
    (`merge_sections`, keeping the richer copy on collision) and bucketed into
-   Out Now vs Coming Up by their TMDB date, then written to Postgres like any
-   other release.
+   Out Now vs Coming Up by that OTT date. `drop_cross_window_duplicates` then
+   collapses any title that landed in both windows — `merge_sections` only
+   de-duplicates within one window, so a title the discover and news passes
+   dated differently used to appear twice, a month apart. Then written to
+   Postgres like any other release.
+
+A scraped platform hint is only used when TMDB has no availability for the
+region yet, and only when the source names exactly one platform: a headline
+reading "…on Netflix, JioHotstar, SonyLIV & more" says nothing about which of
+its titles goes where, and a wrong platform is worse than none.
 
 Set `NEWS_ENABLED=false` to fall back to TMDB-only behavior.
+
+## Tests
+
+```bash
+pytest
+```
+
+Offline by design — the TMDB client is faked and the scraper runs against HTML
+fixtures, so no network, API key or database is needed. The suite covers the
+rules that decide what reaches the digest: OTT-date resolution (digital date vs.
+theatrical date, cinema-only titles being dropped), season resolution for
+returning shows, cross-window de-duplication, region gating of platforms, and
+the scraper's title/platform extraction. Each test names the failure it guards
+against.
+
+## Staging: running the pipeline without touching production
+
+`releasebot.py` writes to Postgres whenever `DATABASE_URL` is set — `DRY_RUN`
+only suppresses Telegram and email, not the database write. To exercise the
+pipeline for real, point it at a staging schema instead:
+
+```bash
+python scripts/make_staging.py --reset
+```
+
+That builds a `staging` schema in the same database, applies every migration to
+it, and copies production's rows in (production is only ever read). Then:
+
+```bash
+DATABASE_URL="$(python scripts/make_staging.py --print-url)" python releasebot.py
+```
+
+The isolation rests on pinning `search_path=staging` **alone**, never
+`staging,public` — so a table missing from staging raises `UndefinedTable`
+rather than silently falling through to the production table.
+
+To point the dev server and API at staging too, set the same URL as
+`DATABASE_URL` before starting `npm run dev:full` (both `scripts/dev-api-server.mjs`
+and `lib/db.ts` honour it, and the `postgres` client reads the `?options=` query
+parameter).
+
+Set `TMDB_CACHE_DIR` to cache TMDB responses on disk while iterating — a full
+digest is several hundred requests, and a cache makes repeated runs cheap and
+survivable on a flaky connection. `TMDB_CACHE_TTL_SECONDS` defaults to 6 hours.
+Leave it unset in production: provider attribution appears days after a title
+goes live, and serving that from a stale cache is the staleness this radar
+exists to avoid.
 
 ## Local development
 

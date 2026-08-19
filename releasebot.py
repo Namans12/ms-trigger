@@ -15,20 +15,27 @@ Delivery: Telegram push + HTML email + a Postgres table the web app reads.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import smtplib
 import sys
+import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import requests
+
+# Re-exported by requests since 2.26; imported from here rather than urllib3
+# directly, which is only a transitive dependency and is not pinned.
+from requests.adapters import HTTPAdapter, Retry
 
 import news_sources
 from platform_names import normalize_platform, normalize_platforms
@@ -92,12 +99,73 @@ class TmdbClient:
         self.api_key = api_key
         self.region = region
         self.session = requests.Session()
+        # Retries live on the adapter, not in a wrapper around session.get():
+        # urllib3 retries a dropped connection on a fresh one from the pool,
+        # which is what a TMDB-side reset needs, and it is safe to share across
+        # the eight worker threads the fetchers use. pool_maxsize matches that
+        # fan-out so threads don't discard and rebuild connections under load.
+        retry = Retry(
+            total=4,
+            connect=4,
+            read=3,
+            backoff_factor=0.6,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset({"GET"}),
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry, pool_connections=8, pool_maxsize=16)
+        self.session.mount("https://", adapter)
+
+        # Opt-in response cache, off unless TMDB_CACHE_DIR is set. It exists for
+        # two reasons. Development: a full digest is ~400 requests, and on a
+        # network that resets connections a single run may never finish — with a
+        # cache each attempt keeps what it got, so repeated runs converge. And
+        # re-running the pipeline to check a change stops being rate-limited
+        # guesswork. Deliberately NOT on by default in production: provider
+        # attribution appears days after a title goes live, and serving that from
+        # a stale cache is exactly the staleness this radar exists to avoid.
+        raw_dir = os.getenv("TMDB_CACHE_DIR", "").strip()
+        self.cache_dir = Path(raw_dir) if raw_dir else None
+        self.cache_ttl = float(os.getenv("TMDB_CACHE_TTL_SECONDS", "21600"))  # 6h
+        if self.cache_dir:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            print(
+                f"  TMDB cache: {self.cache_dir} (ttl {self.cache_ttl:.0f}s)",
+                file=sys.stderr,
+            )
+
+    def _cache_path(self, path: str, params: dict[str, Any]) -> Path | None:
+        if not self.cache_dir:
+            return None
+        # api_key is excluded from the key so a rotated key doesn't orphan the
+        # cache, and so the filename never contains a secret.
+        payload = json.dumps(
+            [path, sorted((k, str(v)) for k, v in params.items() if k != "api_key")],
+            sort_keys=True,
+        )
+        return self.cache_dir / f"{hashlib.sha256(payload.encode()).hexdigest()}.json"
 
     def get(self, path: str, **params: Any) -> dict[str, Any]:
+        cached = self._cache_path(path, params)
+        if cached and cached.exists():
+            age = time.time() - cached.stat().st_mtime
+            if age < self.cache_ttl:
+                try:
+                    return json.loads(cached.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    pass  # corrupt entry: fall through and refetch
+
         params["api_key"] = self.api_key
         response = self.session.get(f"{TMDB_BASE_URL}{path}", params=params, timeout=30)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+
+        if cached:
+            try:
+                cached.write_text(json.dumps(data), encoding="utf-8")
+            except OSError:  # pragma: no cover - a read-only cache dir is not fatal
+                pass
+        return data
 
     def discover(self, media_type: str, pages: int = 2, **params: Any) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
@@ -118,19 +186,59 @@ class TmdbClient:
     def tv_details(self, tv_id: int) -> dict[str, Any]:
         return self.get(f"/tv/{tv_id}", append_to_response="watch/providers")
 
+    def tv_season(self, tv_id: int, season_number: int) -> dict[str, Any]:
+        return self.get(f"/tv/{tv_id}/season/{season_number}")
+
+    def details_or_empty(self, media_type: str, item_id: int) -> dict[str, Any]:
+        """Details for one title, or {} if TMDB could not be reached for it.
+
+        The fetchers map this across a thread pool, and `executor.map` re-raises
+        the first exception it hit — so without this one unreachable title took
+        the entire digest down with it (and with the digest, that run's Postgres
+        refresh). A title that returns {} simply lands without providers.
+        """
+        try:
+            return (
+                self.movie_details(item_id)
+                if media_type == "movie"
+                else self.tv_details(item_id)
+            )
+        except Exception as exc:  # pragma: no cover - network resilience
+            print(f"  TMDB details failed for {media_type}/{item_id}: {exc}", file=sys.stderr)
+            return {}
+
 
 # Networks that are themselves streaming platforms. Used as a fallback when a
 # brand-new show has no watch-provider attribution on TMDB yet (provider data
 # usually appears only days after a title goes live on the service).
 # Membership is tested on the *normalized* name, so every spelling variant
 # ("Prime Video", "Amazon Prime Video with Ads") collapses to one entry here.
-STREAMING_NETWORKS = {
-    "Netflix", "Amazon Prime", "JioHotstar", "Apple TV+", "HBO Max",
-    "Paramount+", "Peacock", "Hulu", "ZEE5", "SonyLIV", "Sun NXT", "aha",
-    "Hoichoi", "Amazon MX Player", "Crunchyroll", "Viki", "Lionsgate Play",
-    "Discovery+", "YouTube", "Tubi", "Stan", "Viu", "MUBI", "BookMyShow Stream",
-    "Chaupal", "ManoramaMAX", "Planet Marathi", "Eros Now", "STAGE", "ULLU",
+#
+# Keyed by region, because that fallback is only sound for services the region's
+# viewers can actually subscribe to. Stamping an India digest with "Hulu" names a
+# service the reader cannot buy — and such a title has no India date either, so
+# it is a false positive twice over.
+STREAMING_NETWORKS_BY_REGION = {
+    "IN": {
+        "Netflix", "Amazon Prime", "JioHotstar", "Apple TV+", "ZEE5", "SonyLIV",
+        "Sun NXT", "aha", "Hoichoi", "Amazon MX Player", "Crunchyroll", "Viki",
+        "Lionsgate Play", "Discovery+", "YouTube", "Viu", "MUBI",
+        "BookMyShow Stream", "Chaupal", "ManoramaMAX", "Planet Marathi",
+        "Eros Now", "STAGE", "ULLU",
+    },
 }
+
+# Services that exist somewhere but not in every region. Used only for regions
+# we have no explicit list for, where dropping everything would be worse.
+STREAMING_NETWORKS_GLOBAL = STREAMING_NETWORKS_BY_REGION["IN"] | {
+    "HBO Max", "Paramount+", "Peacock", "Hulu", "Tubi", "Stan",
+}
+
+
+def streamable_networks(region: str) -> set[str]:
+    """Networks whose name may stand in as a platform for `region`."""
+    return STREAMING_NETWORKS_BY_REGION.get(region, STREAMING_NETWORKS_GLOBAL)
+
 
 # TMDB splits availability across buckets. "flatrate" (included with a
 # subscription), "ads" (free with adverts) and "free" all mean "you can watch it
@@ -154,6 +262,26 @@ def flatrate_providers(details: dict[str, Any], region: str) -> tuple[str, ...]:
             if name:
                 names.append(name)
     return normalize_platforms(names)
+
+
+def rent_buy_providers(details: dict[str, Any], region: str) -> tuple[str, ...]:
+    """Stores where a title can be bought or rented, as a distinct fallback.
+
+    Toy Story 5 has a real digital release date in India but is buy/rent only
+    this week — no subscription tier carries it yet. Previously that meant
+    empty `providers`, which rendered as "Platform TBA" even though the title
+    genuinely is available, just not by subscription. Tagged rather than merged
+    into the untagged list: telling a reader "Netflix" when the title is really
+    a ₹200 rental on Prime Video is a worse error than no platform at all.
+    """
+    region_payload = details.get("watch/providers", {}).get("results", {}).get(region, {})
+    names: list[str] = []
+    for bucket in ("rent", "buy"):
+        for entry in region_payload.get(bucket, []) or []:
+            name = entry.get("provider_name")
+            if name:
+                names.append(name)
+    return tuple(f"{name} (Buy/Rent)" for name in normalize_platforms(names))
 
 
 def digital_release_date(details: dict[str, Any], region: str) -> str | None:
@@ -316,13 +444,13 @@ def fetch_ott_movies(
         ordered.append(raw)
 
     with ThreadPoolExecutor(max_workers=8) as executor:
-        details_list = list(executor.map(lambda r: tmdb.movie_details(r["id"]), ordered))
+        details_list = list(executor.map(lambda r: tmdb.details_or_empty("movie", r["id"]), ordered))
 
     items: list[ReleaseItem] = []
     for raw, details in zip(ordered, details_list):
         movie_id = raw["id"]
         best_date = digital_release_date(details, tmdb.region)
-        providers = flatrate_providers(details, tmdb.region)
+        providers = flatrate_providers(details, tmdb.region) or rent_buy_providers(details, tmdb.region)
 
         if not best_date:
             if movie_id in confirmed_ids:
@@ -366,16 +494,13 @@ def fetch_ott_shows(
     raws = tmdb.discover("tv", **params)[:limit]
 
     with ThreadPoolExecutor(max_workers=8) as executor:
-        details_list = list(executor.map(lambda r: tmdb.tv_details(r["id"]), raws))
+        details_list = list(executor.map(lambda r: tmdb.details_or_empty("tv", r["id"]), raws))
 
     items: list[ReleaseItem] = []
     for raw, details in zip(raws, details_list):
-        providers = flatrate_providers(details, tmdb.region)
+        providers = _providers_from_details(details, tmdb.region, None)
         if not providers:
-            networks = normalize_platforms(n.get("name", "") for n in details.get("networks", []))
-            providers = tuple(n for n in networks if n in STREAMING_NETWORKS)
-        if not providers:
-            continue  # linear-TV-only / not a streaming release
+            continue  # linear-TV-only / not a streaming release in this region
         items.append(normalize_tv(raw, providers))
     return items
 
@@ -455,6 +580,30 @@ def _norm_title(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
 
 
+# \b before each keyword so the trailing 's' of a real word is never read as the
+# season marker — "Bigg Boss 18" must not become ("Bigg Bos", 18).
+_SEASON_SUFFIX_RE = re.compile(
+    r"\s*(?:[-–—:]\s*)?\b(?:season|series|s)\s*(\d{1,2})\s*$", re.IGNORECASE
+)
+
+
+def _split_season(title: str) -> tuple[str, int | None]:
+    """Separate 'Outer Banks Season 5' into ('Outer Banks', 5).
+
+    TMDB has no searchable entity for a season: /search/multi returns nothing at
+    all for "Outer Banks Season 5", so every returning show's new season was
+    silently unmatched — which is why Outer Banks S5, Stillwater S5, Love Is
+    Blind: UK S3, Average Joe S2 and The Traitors S2 were all missing while the
+    round-ups led with them. Search the series, then date the season.
+    """
+    m = _SEASON_SUFFIX_RE.search(title)
+    if not m:
+        return title, None
+    base = title[: m.start()].strip(" -–—:")
+    # "Berlin 1" is likelier a title than a season; require a real base name.
+    return (base, int(m.group(1))) if len(base) >= 3 else (title, None)
+
+
 def _match_search_result(candidate_title: str, results: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Pick the TMDB movie/tv result that best matches a scraped title."""
     cn = _norm_title(candidate_title)
@@ -490,24 +639,30 @@ def _match_search_result(candidate_title: str, results: list[dict[str, Any]]) ->
     return best
 
 
-def _providers_for(tmdb: TmdbClient, media_type: str, item_id: int, fallback: str | None) -> tuple[str, ...]:
-    try:
-        details = tmdb.movie_details(item_id) if media_type == "movie" else tmdb.tv_details(item_id)
-    except Exception:  # pragma: no cover - network resilience
-        details = {}
-    providers = flatrate_providers(details, tmdb.region)
+def _providers_from_details(
+    details: dict[str, Any], region: str, fallback: str | None
+) -> tuple[str, ...]:
+    """Platforms for an already-fetched details payload."""
+    providers = flatrate_providers(details, region)
+    if not providers:
+        providers = rent_buy_providers(details, region)
     if not providers:
         networks = normalize_platforms(n.get("name", "") for n in details.get("networks", []))
-        providers = tuple(n for n in networks if n in STREAMING_NETWORKS)
+        providers = tuple(n for n in networks if n in streamable_networks(region))
     if not providers and fallback:
-        # Headline-scraped hint from news_sources — normalize it too, otherwise
-        # its curated spelling diverges from the TMDB-derived names.
+        # News-scraped hint from news_sources — normalize it too, otherwise its
+        # curated spelling diverges from the TMDB-derived names.
         hint = normalize_platform(fallback)
         providers = (hint,) if hint else ()
     return providers
 
 
-def _item_from_search(result: dict[str, Any], release_date: str, providers: tuple[str, ...]) -> ReleaseItem:
+def _item_from_search(
+    result: dict[str, Any],
+    release_date: str,
+    providers: tuple[str, ...],
+    season: int | None = None,
+) -> ReleaseItem:
     media_type = "movie" if result.get("media_type") == "movie" else "tv"
     title = (
         result.get("title")
@@ -516,6 +671,11 @@ def _item_from_search(result: dict[str, Any], release_date: str, providers: tupl
         or result.get("original_name")
         or "Untitled"
     )
+    # We searched the series but are announcing one season; say which, so the
+    # digest reads "Outer Banks Season 5" and not a bare "Outer Banks" that
+    # looks like the 2020 premiere.
+    if season is not None and not re.search(r"season\s*\d", title, re.IGNORECASE):
+        title = f"{title} Season {season}"
     return ReleaseItem(
         tmdb_id=result["id"],
         title=title,
@@ -552,66 +712,174 @@ def enrich_news_candidates(
     """Validate scraped titles against TMDB and bucket them into the two windows.
 
     Returns {"out_now": {section: [...]}, "coming_up": {section: [...]}}.
-    A title lands in Coming Up if TMDB dates it on/after the next run, else
-    Out Now (news round-ups are 'this week', so we never window-drop them).
+
+    The date a title is filed under is its *OTT* date, resolved from the
+    release-dates endpoint — never the primary date that /search returns. Those
+    differ by months for anything that played in cinemas first: Jana Nayagan
+    opened on 23 July and streams on 21 August, and filing it under July put a
+    theatrical date on the calendar labelled as a streaming premiere, in the
+    wrong month, while a second copy sat correctly under August.
+
+    A movie with no digital date and no providers is dropped rather than filed
+    under its theatrical date — that is how cinema-only releases (7 Dogs,
+    Irumudi, Khalifa) were reaching the OTT digest.
     """
     lo = today - timedelta(days=recency_days)
     hi = horizon_end + timedelta(days=10)
 
-    def lookup(cand: news_sources.Candidate) -> tuple[news_sources.Candidate, dict[str, Any], str] | None:
+    def lookup(
+        cand: news_sources.Candidate,
+    ) -> tuple[news_sources.Candidate, dict[str, Any], int | None] | None:
+        base, season = _split_season(cand.title)
         try:
             results = tmdb.search_multi(cand.title)
+            match = _match_search_result(cand.title, results)
+            if not match and season is not None:
+                # TMDB cannot search a season; fall back to the series name.
+                match = _match_search_result(base, tmdb.search_multi(base))
         except Exception:  # pragma: no cover - network resilience
             return None
-        match = _match_search_result(cand.title, results)
         if not match:
             return None
-        raw_date = (match.get("release_date") or match.get("first_air_date") or "")[:10]
-        if not raw_date:
-            return None
-        try:
-            parsed = date.fromisoformat(raw_date)
-        except ValueError:
-            return None
-        if not (lo <= parsed <= hi):
-            return None
-        return cand, match, raw_date
+        # A season number only means anything for a series.
+        return cand, match, (season if match.get("media_type") == "tv" else None)
 
     with ThreadPoolExecutor(max_workers=8) as executor:
         matched = [m for m in executor.map(lookup, candidates) if m]
 
-    # De-duplicate by TMDB id (several headlines point at the same title).
-    by_id: dict[tuple[str, int], tuple[news_sources.Candidate, dict[str, Any], str]] = {}
-    for cand, match, raw_date in matched:
-        by_id[(match.get("media_type", ""), match["id"])] = (cand, match, raw_date)
+    # De-duplicate by TMDB id (several round-ups point at the same title) before
+    # spending a details call on each. Keyed with the season so S4 and S5 of one
+    # show stay separate entries rather than one overwriting the other.
+    by_id: dict[
+        tuple[str, int, int | None], tuple[news_sources.Candidate, dict[str, Any], int | None]
+    ] = {}
+    for cand, match, season in matched:
+        by_id[(match.get("media_type", ""), match["id"], season)] = (cand, match, season)
+
+    def resolve(
+        entry: tuple[news_sources.Candidate, dict[str, Any], int | None]
+    ) -> tuple[news_sources.Candidate, dict[str, Any], str, tuple[str, ...], int | None] | None:
+        """Attach the OTT date and platforms, or drop the candidate.
+
+        One details fetch serves both — it carries release_dates and
+        watch/providers together, so this replaces the separate provider pass.
+        """
+        cand, match, season = entry
+        media_type = "movie" if match.get("media_type") == "movie" else "tv"
+        try:
+            details = (
+                tmdb.movie_details(match["id"])
+                if media_type == "movie"
+                else tmdb.tv_details(match["id"])
+            )
+        except Exception:  # pragma: no cover - network resilience
+            return None
+
+        providers = _providers_from_details(details, tmdb.region, cand.platform)
+
+        if media_type == "movie":
+            ott_date = digital_release_date(details, tmdb.region)
+            if not ott_date:
+                # No digital date on record. Only a title already streaming can
+                # be dated from its primary release (straight-to-OTT original);
+                # anything else is a cinema release we have no OTT date for.
+                if not providers:
+                    return None
+                ott_date = (match.get("release_date") or "")[:10]
+        else:
+            # Shows have no separate digital date — the air date IS the drop
+            # date. Require a platform so linear-TV-only airings stay out.
+            if not providers:
+                return None
+            ott_date = ""
+            if season is not None:
+                # first_air_date is when the *series* began (Outer Banks: 2020),
+                # so a returning season must be dated from the season itself.
+                try:
+                    ott_date = (tmdb.tv_season(match["id"], season).get("air_date") or "")[:10]
+                except Exception:  # pragma: no cover - network resilience
+                    ott_date = ""
+            if not ott_date:
+                ott_date = (match.get("first_air_date") or "")[:10]
+
+        if not ott_date:
+            return None
+        try:
+            parsed = date.fromisoformat(ott_date)
+        except ValueError:
+            return None
+        if not (lo <= parsed <= hi):
+            return None
+        return cand, match, ott_date, providers, season
 
     with ThreadPoolExecutor(max_workers=8) as executor:
-        provider_lists = list(
-            executor.map(
-                lambda entry: _providers_for(
-                    tmdb, entry[1].get("media_type", "tv"), entry[1]["id"], entry[0].platform
-                ),
-                by_id.values(),
-            )
-        )
+        resolved = [r for r in executor.map(resolve, by_id.values()) if r]
 
     buckets: dict[str, dict[str, list[ReleaseItem]]] = {
         "out_now": {s: [] for s in SECTION_ORDER},
         "coming_up": {s: [] for s in SECTION_ORDER},
     }
-    for (cand, match, raw_date), providers in zip(by_id.values(), provider_lists):
-        item = _item_from_search(match, raw_date, providers)
-        window = "coming_up" if date.fromisoformat(raw_date) >= next_trigger else "out_now"
+    for cand, match, ott_date, providers, season in resolved:
+        item = _item_from_search(match, ott_date, providers, season)
+        window = "coming_up" if date.fromisoformat(ott_date) >= next_trigger else "out_now"
         section = section_for_language(item.language, languages)
         buckets[window][section].append(item)
 
     total = sum(len(v) for w in buckets.values() for v in w.values())
-    print(f"  news: {len(candidates)} candidates -> {len(by_id)} TMDB-confirmed -> {total} placed", file=sys.stderr)
+    print(
+        f"  news: {len(candidates)} candidates -> {len(by_id)} TMDB-confirmed"
+        f" -> {len(resolved)} with an OTT date -> {total} placed",
+        file=sys.stderr,
+    )
     return buckets
 
 
 def _item_richness(item: ReleaseItem) -> tuple[int, int, float]:
     return (int(bool(item.poster_url)), int(bool(item.providers)), item.popularity)
+
+
+def drop_cross_window_duplicates(
+    out_sections: dict[str, list[ReleaseItem]],
+    up_sections: dict[str, list[ReleaseItem]],
+    out_window: tuple[date, date],
+    up_window: tuple[date, date],
+) -> None:
+    """Keep one copy of each title across both windows, in place.
+
+    `merge_sections` de-duplicates within a window, so a title that the discover
+    pass dated differently from the news pass survived in both — the calendar
+    then rendered the same film in two months. When a title appears twice, the
+    copy whose date actually falls inside its own window wins; failing that, the
+    richer copy does.
+    """
+
+    def in_window(item: ReleaseItem, window: tuple[date, date]) -> bool:
+        try:
+            return window[0] <= date.fromisoformat(item.release_date) <= window[1]
+        except ValueError:  # 'TBA' and other non-dates
+            return False
+
+    # (owning sections dict, section name, item, that window's bounds)
+    Placement = tuple[dict[str, list[ReleaseItem]], str, ReleaseItem, tuple[date, date]]
+    placements: dict[tuple[str, int], list[Placement]] = {}
+    for sections, window in ((out_sections, out_window), (up_sections, up_window)):
+        for section, items in sections.items():
+            for item in items:
+                placements.setdefault((item.media_type, item.tmdb_id), []).append(
+                    (sections, section, item, window)
+                )
+
+    for spots in placements.values():
+        if len(spots) < 2:
+            continue
+        best = max(spots, key=lambda s: (int(in_window(s[2], s[3])), _item_richness(s[2])))
+        winner = best[2]
+        for sections, section, item, _window in spots:
+            # Identity, not equality: ReleaseItem is a frozen dataclass, so two
+            # value-identical copies compare equal and both would survive.
+            if item is winner:
+                continue
+            sections[section] = [x for x in sections[section] if x is not item]
 
 
 def merge_sections(
@@ -1152,12 +1420,22 @@ def build_digest(now: datetime | None = None, diagnostics: bool = False) -> dict
         if env_bool("NEWS_ENABLED", True):
             try:
                 extra_urls = tuple(env_list("NEWS_URLS", ""))
-                candidates = news_sources.fetch_news_candidates(extra_urls=extra_urls)
+                index_urls = tuple(
+                    env_list("NEWS_INDEX_URLS", "")
+                ) or news_sources.ROUNDUP_INDEX_URLS
+                candidates = news_sources.fetch_news_candidates(
+                    extra_urls=extra_urls, index_urls=index_urls
+                )
                 buckets = enrich_news_candidates(
                     tmdb, candidates, languages, now.date(), up_start, up_end
                 )
                 merge_sections(out_sections, buckets["out_now"])
                 merge_sections(up_sections, buckets["coming_up"])
+                # merge_sections only de-duplicates within one window; a title
+                # the two passes dated differently needs collapsing across both.
+                drop_cross_window_duplicates(
+                    out_sections, up_sections, (out_start, out_end), (up_start, up_end)
+                )
                 # Popular can now overflow; keep the section focused.
                 for sections in (out_sections, up_sections):
                     sections["popular"] = sections["popular"][:30]

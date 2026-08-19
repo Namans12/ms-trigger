@@ -8,3 +8,9 @@ dependencies = [
     "tzdata==2025.2",
     "psycopg[binary]==3.2.*",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Tests are offline by design: the TMDB client is faked and the scraper runs on
+# HTML fixtures, so `pytest` needs no network, no API key and no database.
+addopts = "-q"
