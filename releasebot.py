@@ -1213,6 +1213,14 @@ def main() -> int:
     plain_message = format_plain_message(digest)
 
     sent_channels: list[str] = []
+    # Failures recorded here fail the whole run (see the `return 1` at the
+    # bottom of main()) without skipping the channels below — Telegram/Email
+    # still send on a DB failure, so a subscriber isn't also denied the digest
+    # they'd otherwise have gotten. The run still ends non-zero so GitHub
+    # Actions shows it red instead of green: a write failure here means the
+    # live site is reading stale Postgres data until the next successful run,
+    # and that must be loud, not a silent stderr line nobody watches.
+    failures: list[str] = []
 
     db_conn = None
     if os.getenv("DATABASE_URL"):
@@ -1224,7 +1232,8 @@ def main() -> int:
             print(f"Wrote {n} rows to Postgres release_items")
             sent_channels.append("Postgres")
         except Exception as exc:  # pragma: no cover
-            print(f"Postgres write failed (non-fatal): {exc}", file=sys.stderr)
+            print(f"Postgres write failed: {exc}", file=sys.stderr)
+            failures.append(f"Postgres write failed: {exc}")
 
     if telegram_enabled:
         send_telegram_message(env_required("TELEGRAM_BOT_TOKEN"), env_required("TELEGRAM_CHAT_ID"), message)
@@ -1292,6 +1301,13 @@ def main() -> int:
         for section in SECTION_ORDER
     }
     summary = ", ".join(f"{section}: {out}/{up}" for section, (out, up) in counts.items())
+
+    if failures:
+        print(f"OTT Radar completed with failures → sent: {', '.join(sent_channels) or 'none'} | out-now/coming-up counts: {summary}")
+        for failure in failures:
+            print(f"  - {failure}", file=sys.stderr)
+        return 1
+
     print(f"OTT Radar done → {', '.join(sent_channels)} | out-now/coming-up counts: {summary}")
     return 0
 
