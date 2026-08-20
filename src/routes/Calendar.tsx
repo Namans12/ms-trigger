@@ -1,11 +1,25 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams, Link } from 'react-router-dom';
 import { fetchCalendarMonth } from '@/lib/api';
 import { Toolbar } from '@/components/layout/Toolbar';
 import { Segmented } from '@/components/ui/segmented';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { useMediaScope } from '@/hooks/useMediaScope';
+import { languageName, compareByLanguageName } from '@/lib/languages';
 import type { CalendarEntryDTO, CalendarKind } from '../../shared/types/calendar';
-import { ChevronLeft, ChevronRight, Loader2, Film, Tv, Clapperboard, Star, Popcorn, MonitorPlay } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Film,
+  Tv,
+  Clapperboard,
+  Star,
+  Popcorn,
+  MonitorPlay,
+  Languages,
+} from 'lucide-react';
 
 function currentMonth(): string {
   const now = new Date();
@@ -89,7 +103,7 @@ function EntryRow({ entry }: { entry: CalendarEntryDTO }) {
         <p className="text-sm font-medium text-foreground truncate">{entry.title}</p>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
           {entry.platform && <span className="truncate">{entry.platform}</span>}
-          {entry.language && <span className="opacity-60 shrink-0">{entry.language}</span>}
+          {entry.language && <span className="opacity-60 shrink-0">{languageName(entry.language)}</span>}
           {entry.originRegion && entry.originReleaseDate && (
             <span className="opacity-60 shrink-0">
               ({entry.originRegion}: {shortOrdinalDate(entry.originReleaseDate)})
@@ -141,6 +155,7 @@ export default function Calendar() {
   const [mediaType] = useMediaScope();
   const month = params.get('month') || currentMonth();
   const kind = (params.get('kind') as KindFilter) || 'all';
+  const language = params.get('language');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['calendar', month],
@@ -159,7 +174,29 @@ export default function Calendar() {
   // type was never resolved stay visible under "All" only, rather than being
   // silently dropped from both halves of the split.
   const allEntries = data?.entries ?? [];
-  const entries = mediaType === 'all' ? allEntries : allEntries.filter((e) => e.mediaType === mediaType);
+  const scopedEntries = mediaType === 'all' ? allEntries : allEntries.filter((e) => e.mediaType === mediaType);
+
+  // Options come from the media-scoped list (not yet language-filtered) so
+  // picking a language never makes other options disappear from the menu.
+  // Deduped by DISPLAY name, not raw code: a data-quality artifact stores some
+  // rows as 'cn' instead of the correct 'zh', and both mean "Chinese" — one
+  // representative code per distinct name, or the filter shows two
+  // identical-looking "Chinese" options that quietly do different things.
+  const languageOptions = useMemo(() => {
+    const byName = new Map<string, string>();
+    for (const e of scopedEntries) {
+      if (!e.language) continue;
+      const name = languageName(e.language);
+      if (!byName.has(name)) byName.set(name, e.language);
+    }
+    return [...byName.values()].sort(compareByLanguageName);
+  }, [scopedEntries]);
+
+  // Matched by display name (see above), so selecting either "cn" or "zh"
+  // catches every row that means Chinese, not just the one exact code chosen.
+  const entries = language
+    ? scopedEntries.filter((e) => e.language && languageName(e.language) === languageName(language))
+    : scopedEntries;
   const counts: Record<CalendarKind, number> = { theatrical: 0, streaming: 0, tv_network: 0 };
   for (const entry of entries) counts[entry.kind] = (counts[entry.kind] ?? 0) + 1;
 
@@ -205,6 +242,18 @@ export default function Calendar() {
             onChange={(id) => updateParam('kind', id)}
             aria-label="Release kind"
           />
+
+          {languageOptions.length > 0 && (
+            <FilterSelect
+              label="Language"
+              allLabel="All languages"
+              icon={<Languages size={13} />}
+              value={language}
+              onChange={(next) => updateParam('language', next ?? 'all')}
+              options={languageOptions}
+              getLabel={languageName}
+            />
+          )}
 
           {data && (
             <span className="shrink-0 pl-1 text-[11px] tabular-nums text-muted-foreground">

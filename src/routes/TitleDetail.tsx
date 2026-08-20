@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchTitleDetail, titleDetailToMovie } from '@/lib/tmdbDetail';
@@ -28,6 +28,14 @@ import {
 
 export default function TitleDetail() {
   const { type, id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  // 'default' means this entry has no history behind it in this tab — a
+  // fresh load, a deep link, or a reload — so there is nothing to go back to.
+  // Every other value means the user actually navigated here from within the
+  // app (Calendar, Search, Home, ...), and should land back on exactly that,
+  // not always on Home regardless of where they came from.
+  const goBack = () => (location.key === 'default' ? navigate('/') : navigate(-1));
   const mediaType = type === 'tv' ? 'tv' : 'movie';
   const tmdbId = Number(id);
   const { isAuthenticated } = useAuth();
@@ -74,9 +82,13 @@ export default function TitleDetail() {
   if (error || !data) {
     return (
       <div className="space-y-4">
-        <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <button
+          type="button"
+          onClick={goBack}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft size={14} className="shrink-0" /> Back
-        </Link>
+        </button>
         <p className="text-sm text-muted-foreground">Could not load this title.</p>
       </div>
     );
@@ -94,12 +106,14 @@ export default function TitleDetail() {
           <div className="w-full h-40 bg-secondary" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
-        <Link
-          to="/"
+        <button
+          type="button"
+          onClick={goBack}
+          aria-label="Back"
           className="absolute top-4 left-4 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-background/70 text-foreground backdrop-blur-sm hover:bg-background/90 transition-all"
         >
           <ArrowLeft size={16} />
-        </Link>
+        </button>
       </div>
 
       <div className="px-1 -mt-16 sm:-mt-20 relative flex gap-4 items-end">

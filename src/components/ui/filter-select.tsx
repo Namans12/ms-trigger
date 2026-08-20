@@ -17,6 +17,12 @@ interface FilterSelectProps {
   /** Reveal a filter box once the list is long enough to need one. */
   searchThreshold?: number;
   className?: string;
+  /** Maps an option's stored value to what's shown for it (trigger text,
+   * option row, and search matching) — e.g. an ISO language code to its full
+   * name. `value` and `onChange` still deal in the raw options, so the
+   * underlying filter stays on the normalized value; only the label changes.
+   * Defaults to showing the value as-is. */
+  getLabel?: (value: string) => string;
 }
 
 /**
@@ -34,6 +40,7 @@ export function FilterSelect({
   icon,
   searchThreshold = 8,
   className,
+  getLabel = (v) => v,
 }: FilterSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -41,8 +48,12 @@ export function FilterSelect({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? options.filter((o) => o.toLowerCase().includes(q)) : options;
-  }, [options, query]);
+    // Matches on either the raw value or its label, so searching "hi" and
+    // searching "Hindi" both find the same option.
+    return q
+      ? options.filter((o) => o.toLowerCase().includes(q) || getLabel(o).toLowerCase().includes(q))
+      : options;
+  }, [options, query, getLabel]);
 
   const showSearch = options.length >= searchThreshold;
 
@@ -70,7 +81,7 @@ export function FilterSelect({
           )}
         >
           {icon && <span className="shrink-0">{icon}</span>}
-          <span className="max-w-[10rem] truncate">{value ?? label}</span>
+          <span className="max-w-[10rem] truncate">{value != null ? getLabel(value) : label}</span>
           <ChevronDown
             size={13}
             className={cn('shrink-0 opacity-60 transition-transform duration-200', open && 'rotate-180')}
@@ -116,7 +127,7 @@ export function FilterSelect({
           {filtered.map((opt) => (
             <OptionRow
               key={opt}
-              label={opt}
+              label={getLabel(opt)}
               selected={opt === value}
               onSelect={() => {
                 onChange(opt === value ? null : opt);
