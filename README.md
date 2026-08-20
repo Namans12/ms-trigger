@@ -276,7 +276,7 @@ fixed by re-seeding. No generator ever clears `suppressed`, so the correction
 survives a full regeneration. There is no un-suppress in the UI — reversing one
 is a single `UPDATE` on a single-owner app.
 
-## Theatrical calendar: two sources, and a home-market date in parentheses
+## Theatrical calendar: three sources, and a home-market date in parentheses
 
 `scripts/sync_calendar_tmdb.py` covers licensed, TMDB-backed theatrical data —
 but a spot-check of one real Friday found 8 of 16 films playing in Hyderabad
@@ -285,10 +285,33 @@ at all (small regional-language films routinely have no typed theatrical
 release on TMDB whatsoever). No query change fixes that; the data isn't there.
 `scripts/sync_theatrical_district.py` covers the gap: district.in's per-city
 "upcoming movies" pages embed a fully structured, dated, per-language film list
-in the page's own Next.js JSON — no HTML fragility, real fields. It is
-deliberately single-source for now: a second source with its own spelling of a
-title would create a near-duplicate row rather than an update, since
-`calendar_entries`'s uniqueness is on the exact title string.
+in the page's own Next.js JSON — no HTML fragility, real fields.
+
+**district.in is IP-blocked from GitHub Actions.** Confirmed by dispatching a
+real workflow run and testing every plausible cause from an actual runner: the
+default UA, a full set of browser headers, and a cookie warm-up all still got
+a 403 — even on the plain homepage. That's Akamai denying GitHub's
+hosted-runner ranges outright, not a fingerprint check any header change gets
+past. The step is left in the nightly workflow (harmless — it just logs seven
+403s and writes nothing when blocked, and would start working again for free
+if the block is ever lifted or the job ever moves to a self-hosted runner),
+but `scripts/sync_theatrical_wikipedia.py` is what actually covers this gap in
+CI today: Wikipedia's per-language "List of *language* films of *year*" pages
+carry the same kind of dated, per-title listing, and aren't blocked the same
+way. Coverage is narrower — Wikipedia maintains a dedicated per-year page only
+for languages with enough editors (Telugu, Tamil, Kannada, Malayalam, Hindi;
+not Punjabi or Bengali) — and disclosed as narrower rather than silently
+dropped. Its per-year lists also mix theatrical and straight-to-streaming
+titles with no column marking which is which; a row whose studio/production
+cell names a known streaming platform (`OTT_PRODUCTION_MARKERS` in the script)
+is skipped outright rather than guessed at, since wrongly marking a
+streaming-only release as theatrical is worse than missing a theatrical one.
+
+All three sync scripts are deliberately independent of one another for
+matching purposes: a second source with its own spelling of a title creates a
+near-duplicate row rather than an update, since `calendar_entries`'s
+uniqueness is on the exact title string — see **Duplicate releases** below for
+how that gets caught after the fact.
 
 **The India-first date, with the home-market date in parentheses.** The site
 is not India-only, and a foreign film usually opens in its home market before
@@ -310,15 +333,16 @@ all just shows the one date it has.
 
     python scripts/sync_calendar_tmdb.py --months 6
     python scripts/sync_theatrical_district.py
+    python scripts/sync_theatrical_wikipedia.py
 
-Both scripts enrich existing rows rather than overwrite them (every updated
-column is a `COALESCE` that keeps whatever is already there) — the same
-convention `sync_calendar_tmdb.py` already used for editorial CSV rows. The
-trade-off: a row TMDB got to first with a *wrong* value (e.g. `Judaa` recorded
-as `en` when district.in correctly has it as `pa`, Punjabi) keeps that wrong
-value even after a more accurate source runs, since a non-null field is never
-replaced. Fixing a specific known-wrong row is a manual `UPDATE`, not something
-either sync script will do automatically.
+All three scripts enrich existing rows rather than overwrite them (every
+updated column is a `COALESCE` that keeps whatever is already there) — the
+same convention `sync_calendar_tmdb.py` already used for editorial CSV rows.
+The trade-off: a row TMDB got to first with a *wrong* value (e.g. `Judaa`
+recorded as `en` when district.in correctly has it as `pa`, Punjabi) keeps
+that wrong value even after a more accurate source runs, since a non-null
+field is never replaced. Fixing a specific known-wrong row is a manual
+`UPDATE`, not something any sync script will do automatically.
 
 **Duplicate releases.** `calendar_entries` is unique on `(release_date, title,
 entry_type)` — not on `tmdb_id`. Two rows can independently resolve to the
