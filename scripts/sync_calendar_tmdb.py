@@ -4,10 +4,17 @@ calendar_entries was seeded once from an editorial CSV covering May-Dec 2026.
 Past that window the calendar simply empties out. This keeps it populated from
 TMDB, region-aware, and re-runnable:
 
-  Theatrical  /discover/movie with `region` + `with_release_type=2|3`, which is
-              what makes the dates *Indian cinema* dates rather than a film's
-              first release anywhere. This is the licensed answer to "where do
-              theatrical listings come from" — no ticketing-site scraping.
+  Theatrical  /discover/movie with `region` + `with_release_type=2|3` finds the
+              candidates; one detail call per film then reads its real
+              per-country `release_dates`, because discover's own `release_date`
+              field is documented as a filter, not a reliable per-region value.
+              India's date is what gets stored; a foreign film's home-market
+              date is kept alongside (origin_region/origin_release_date) when
+              it differs, for the "India date (US: 13 Aug)" display. This is
+              the licensed answer to "where do theatrical listings come from"
+              — no ticketing-site scraping. It still cannot see India's own
+              small regional-language cinema, which usually has no typed
+              release on TMDB at all — see scripts/sync_theatrical_district.py.
 
   Television  /discover/tv by first_air_date, plus one detail call per title to
               read its networks. That network is what decides whether a premiere
@@ -73,10 +80,10 @@ UPSERT_SQL = """
 INSERT INTO calendar_entries
     (release_date, title, language, entry_type, is_theatrical,
      platform_or_distributor, details, source, source_url, origin,
-     tmdb_id, media_type, poster_url)
+     tmdb_id, media_type, poster_url, origin_region, origin_release_date)
 VALUES (%(release_date)s, %(title)s, %(language)s, %(entry_type)s, %(is_theatrical)s,
         %(platform)s, %(details)s, 'TMDB', %(source_url)s, 'tmdb_upcoming',
-        %(tmdb_id)s, %(media_type)s, %(poster_url)s)
+        %(tmdb_id)s, %(media_type)s, %(poster_url)s, %(origin_region)s, %(origin_release_date)s)
 ON CONFLICT (release_date, title, entry_type) DO UPDATE SET
     -- Enrich only. An editorial row keeps its own curated platform and details;
     -- all it gains here is the TMDB linkage it never had.
@@ -86,7 +93,9 @@ ON CONFLICT (release_date, title, entry_type) DO UPDATE SET
     -- EXCLUDED names the target table's columns, not the VALUES placeholders,
     -- so this is platform_or_distributor even though the parameter is %(platform)s.
     platform_or_distributor = COALESCE(calendar_entries.platform_or_distributor, EXCLUDED.platform_or_distributor),
-    details                 = COALESCE(calendar_entries.details, EXCLUDED.details)
+    details                 = COALESCE(calendar_entries.details, EXCLUDED.details),
+    origin_region           = COALESCE(calendar_entries.origin_region, EXCLUDED.origin_region),
+    origin_release_date     = COALESCE(calendar_entries.origin_release_date, EXCLUDED.origin_release_date)
 RETURNING (xmax = 0) AS inserted
 """
 
@@ -138,6 +147,70 @@ def tv_networks(session, tmdb_key, tmdb_id: int) -> str | None:
     rate_limit_gap(REQUEST_GAP_SECONDS)
     names = [n.get("name") for n in (payload or {}).get("networks") or [] if n.get("name")]
     return " / ".join(names) if names else None
+
+
+def theatrical_window(
+    session, tmdb_key, tmdb_id: int, region: str, fallback_date: str | None
+) -> tuple[str | None, str | None, str | None]:
+    """(release_date, origin_region, origin_release_date) for one movie.
+
+    `/discover/movie`'s own `release_date` field is the film's single primary
+    date and is NOT guaranteed to be the region's date even when `region` was
+    passed as a discover filter — TMDB documents that field as a filter, not a
+    display value. The only reliable per-country date lives in
+    `release_dates`, hence one detail call per movie (the same trade the
+    existing TV path already makes for `networks`).
+
+    India's date is preferred as the one shown. The "origin" for the
+    parenthetical is the film's own `production_countries[0]` — its actual
+    home market — NOT whichever territory happens to open earliest: measured
+    directly, that naive approach labelled a US tentpole's origin as France or
+    Belgium simply because a distributor's international rollout opened there
+    a day ahead of the US, which is true but not what "US: 13 Aug" is supposed
+    to mean. The origin is only shown when TMDB has a dated release specifically
+    for that production country and it differs from the India date — a same-day
+    worldwide release, or a production country TMDB has no date for, shows no
+    bracket rather than a wrong or redundant one.
+
+    `fallback_date` is discover's own (less precise) date, used only when this
+    title's `release_dates` payload has no usable type-2/3 entry for any
+    country — data gaps happen, and a movie discover already matched on a real
+    India date should never be dropped just because the detail call came back
+    thinner than the discover call.
+    """
+    payload = tmdb_get(session, f"/movie/{tmdb_id}", tmdb_key, {"append_to_response": "release_dates"})
+    rate_limit_gap(REQUEST_GAP_SECONDS)
+    countries = (payload or {}).get("release_dates", {}).get("results", [])
+    production_countries = (payload or {}).get("production_countries") or []
+
+    earliest_by_country: dict[str, str] = {}
+    for country in countries:
+        cc = country.get("iso_3166_1")
+        dates = [
+            rd["release_date"][:10]
+            for rd in country.get("release_dates", [])
+            if rd.get("type") in (2, 3) and rd.get("release_date")
+        ]
+        if cc and dates:
+            earliest_by_country[cc] = min(dates)
+
+    india_date = earliest_by_country.get(region)
+    origin_country = production_countries[0].get("iso_3166_1") if production_countries else None
+    origin_date = earliest_by_country.get(origin_country) if origin_country else None
+
+    if india_date:
+        if origin_country and origin_country != region and origin_date and origin_date != india_date:
+            return india_date, origin_country, origin_date
+        return india_date, None, None
+    # No India-specific date on record.
+    if origin_date:
+        # This IS the origin date already; nothing left to put in parentheses.
+        return origin_date, None, None
+    if earliest_by_country:
+        # The production country itself has no dated record, but some other
+        # territory does — better to show that one date than none at all.
+        return min(earliest_by_country.values()), None, None
+    return fallback_date, None, None
 
 
 def main() -> int:
@@ -207,10 +280,14 @@ def main() -> int:
             print(f"  {month_start[:7]}: {len(films)} theatrical films{truncated}")
 
             for film in films:
-                release_date = film.get("release_date")
-                if not release_date or film["id"] in seen_movie_ids:
+                if film["id"] in seen_movie_ids:
                     continue
                 seen_movie_ids.add(film["id"])
+                release_date, origin_region, origin_release_date = theatrical_window(
+                    session, tmdb_key, film["id"], args.region, film.get("release_date")
+                )
+                if not release_date:
+                    continue
                 rows.append(
                     {
                         "release_date": release_date,
@@ -226,6 +303,8 @@ def main() -> int:
                         "tmdb_id": film["id"],
                         "media_type": "movie",
                         "poster_url": f"{IMG_BASE}{film['poster_path']}" if film.get("poster_path") else None,
+                        "origin_region": origin_region,
+                        "origin_release_date": origin_release_date,
                     }
                 )
 
@@ -268,6 +347,10 @@ def main() -> int:
                         "tmdb_id": show["id"],
                         "media_type": "tv",
                         "poster_url": f"{IMG_BASE}{show['poster_path']}" if show.get("poster_path") else None,
+                        # TV premieres are a single global first_air_date, not a
+                        # per-country theatrical window — no origin to show.
+                        "origin_region": None,
+                        "origin_release_date": None,
                     }
                 )
     except TmdbUnavailable as err:

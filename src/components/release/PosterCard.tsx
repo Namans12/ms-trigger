@@ -83,7 +83,13 @@ export function PosterCard({
         )}
       </div>
 
-      <h4 className="mt-2 text-xs font-medium text-foreground line-clamp-2 leading-tight">{item.title}</h4>
+      {/* min-h reserves 2 lines regardless of actual title length — without it,
+          a one-line title's metadata row and Add button sit higher than a
+          neighbouring two-line title's in the same grid row, since each card's
+          height was otherwise driven by its own content. */}
+      <h4 className="mt-2 min-h-[2.25rem] text-xs font-medium text-foreground line-clamp-2 leading-tight">
+        {item.title}
+      </h4>
       <div className="flex items-center gap-1.5 mt-0.5 leading-none flex-wrap">
         {year && <span className="text-[10px] text-muted-foreground">{year}</span>}
         <span className="text-[9px] uppercase font-semibold text-muted-foreground">

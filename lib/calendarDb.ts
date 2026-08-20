@@ -35,7 +35,8 @@ export async function getCalendarMonth(sql: postgres.Sql<any>, month: string): P
 
   const csvRows = await sql`
     SELECT release_date::text AS release_date, title, language, entry_type, is_theatrical, platform_or_distributor,
-           tmdb_id, media_type, details, poster_url
+           tmdb_id, media_type, details, poster_url,
+           origin_region, origin_release_date::text AS origin_release_date
     FROM calendar_entries
     WHERE date_trunc('month', release_date::timestamp) = date_trunc('month', ${monthStart}::date)
     ORDER BY release_date
@@ -60,6 +61,11 @@ export async function getCalendarMonth(sql: postgres.Sql<any>, month: string): P
       rating: row.rating !== null ? Number(row.rating) : null,
       overview: row.overview,
       origin: "tmdb",
+      // release_items is OTT-only; a streaming date is whatever date the
+      // platform itself dropped the title on, not a theatrical window with a
+      // separate home-market date to contrast against.
+      originRegion: null,
+      originReleaseDate: null,
     });
     seen.add(dedupeKey(row.title, releaseDate));
   }
@@ -92,6 +98,8 @@ export async function getCalendarMonth(sql: postgres.Sql<any>, month: string): P
       rating: null,
       overview: row.details,
       origin: "csv_seed",
+      originRegion: row.origin_region ?? null,
+      originReleaseDate: row.origin_release_date ?? null,
     });
   }
 

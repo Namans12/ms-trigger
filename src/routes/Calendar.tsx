@@ -28,6 +28,22 @@ function dayLabel(dateStr: string): string {
   return d.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+function ordinal(day: number): string {
+  if (day % 10 === 1 && day !== 11) return `${day}st`;
+  if (day % 10 === 2 && day !== 12) return `${day}nd`;
+  if (day % 10 === 3 && day !== 13) return `${day}rd`;
+  return `${day}th`;
+}
+
+/** "13th Aug" — used only for the origin-date parenthetical, which sits next
+ * to a title rather than under its own day header, so it needs the day
+ * spelled out rather than relying on which section of the page it's in. */
+function shortOrdinalDate(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const month = d.toLocaleDateString('en-GB', { month: 'short' });
+  return `${ordinal(d.getDate())} ${month}`;
+}
+
 type KindFilter = 'all' | CalendarKind;
 
 const SECTIONS: { kind: CalendarKind; label: string; icon: React.ReactNode }[] = [
@@ -74,6 +90,11 @@ function EntryRow({ entry }: { entry: CalendarEntryDTO }) {
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
           {entry.platform && <span className="truncate">{entry.platform}</span>}
           {entry.language && <span className="opacity-60 shrink-0">{entry.language}</span>}
+          {entry.originRegion && entry.originReleaseDate && (
+            <span className="opacity-60 shrink-0">
+              ({entry.originRegion}: {shortOrdinalDate(entry.originReleaseDate)})
+            </span>
+          )}
         </div>
       </div>
       {entry.rating != null && (

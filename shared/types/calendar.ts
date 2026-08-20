@@ -17,4 +17,11 @@ export interface CalendarEntryDTO {
   rating: number | null;
   overview: string | null;
   origin: "tmdb" | "csv_seed";
+  /** ISO 3166-1 country the release date belongs to when it differs from
+   * `releaseDate` — a foreign film's home-market date, shown as "(US: 13 Aug)"
+   * alongside the India date. Null whenever there is nothing extra to say:
+   * regional Indian cinema releases day-and-date in India, and a title with
+   * no known India date at all just shows its one known date with no bracket. */
+  originRegion: string | null;
+  originReleaseDate: string | null; // YYYY-MM-DD
 }

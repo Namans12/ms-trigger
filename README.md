@@ -90,7 +90,7 @@ Using your own Gmail (or any account) as the sender needs an **app password**, n
 
 1. Create a free project at https://neon.tech (pick a region close to your Vercel deployment region).
 2. Copy the pooled connection string.
-3. Run the migrations once, in order: `0001_init.sql`, `0002_title_ratings.sql`, `0003_title_relations.sql`, `0004_title_relations_reverse_index.sql`, `0005_title_relation_lookups.sql`, `0006_calendar_entries_poster.sql`, `0007_multi_user_accounts.sql`, `0008_release_items_month_index.sql`, `0009_calendar_language_iso.sql` — e.g. `psql "$DATABASE_URL" -f migrations/0001_init.sql` for each (or via a Python one-liner with `psycopg` if you don't have `psql` installed).
+3. Run the migrations once, in order: `0001_init.sql`, `0002_title_ratings.sql`, `0003_title_relations.sql`, `0004_title_relations_reverse_index.sql`, `0005_title_relation_lookups.sql`, `0006_calendar_entries_poster.sql`, `0007_multi_user_accounts.sql`, `0008_release_items_month_index.sql`, `0009_calendar_language_iso.sql`, `0010_calendar_origin_release.sql` — e.g. `psql "$DATABASE_URL" -f migrations/0001_init.sql` for each (or via a Python one-liner with `psycopg` if you don't have `psql` installed).
 4. Link the seeded calendar rows to TMDB so they get posters and become clickable: `python scripts/backfill_calendar_tmdb.py` (safe to re-run; it only touches rows still missing a `tmdb_id`).
 5. Keep the calendar populated past the seeded window: `python scripts/sync_calendar_tmdb.py --months 6`. Pulls region-aware theatrical dates (`/discover/movie` with `region` + `with_release_type=2|3` + `release_date.gte/lte` — not `primary_release_date.*`, which ignores `region` entirely and returns global junk) and TV premieres, and only ever *enriches* existing rows — a curated editorial row keeps its own platform and details and merely gains a poster and a `tmdb_id`. Queries one calendar month at a time rather than the whole window at once — TMDB caps each `/discover` call at a fixed page limit regardless of true match count, so a single big-range query lets a handful of popular titles anywhere in it crowd out an entire other month's releases before the cap even applies (confirmed directly: a 6-month single-query window had 178 real matches behind a 60-result cap, silently dropping 118). TV premieres are additionally scoped by `--tv-countries` (default `IN,US,GB`) — TMDB is crowdsourced and global TV volume runs into the hundreds a month, almost all obscure local productions; this trades missing an occasional big non-English hit for not drowning the calendar in noise. Runs nightly (see below).
 4. Optionally seed the editorial calendar: `python scripts/seed_calendar_csv.py`.
@@ -275,6 +275,50 @@ never overwrite a higher-trust one, so a wrong TMDB collection edge cannot be
 fixed by re-seeding. No generator ever clears `suppressed`, so the correction
 survives a full regeneration. There is no un-suppress in the UI — reversing one
 is a single `UPDATE` on a single-owner app.
+
+## Theatrical calendar: two sources, and a home-market date in parentheses
+
+`scripts/sync_calendar_tmdb.py` covers licensed, TMDB-backed theatrical data —
+but a spot-check of one real Friday found 8 of 16 films playing in Hyderabad
+cinemas were either absent from TMDB or present with no release date recorded
+at all (small regional-language films routinely have no typed theatrical
+release on TMDB whatsoever). No query change fixes that; the data isn't there.
+`scripts/sync_theatrical_district.py` covers the gap: district.in's per-city
+"upcoming movies" pages embed a fully structured, dated, per-language film list
+in the page's own Next.js JSON — no HTML fragility, real fields. It is
+deliberately single-source for now: a second source with its own spelling of a
+title would create a near-duplicate row rather than an update, since
+`calendar_entries`'s uniqueness is on the exact title string.
+
+**The India-first date, with the home-market date in parentheses.** The site
+is not India-only, and a foreign film usually opens in its home market before
+its Indian release — sometimes weeks or months. `sync_calendar_tmdb.py` now
+makes one detail call per discovered film (mirroring the existing per-show
+call for TV networks) to read its real per-country `release_dates`, because
+`/discover/movie`'s own `release_date` field is documented as a filter, not a
+reliable per-region value. India's date becomes the one shown; the film's
+**production country's** date is kept alongside in
+`origin_region`/`origin_release_date` when it differs, rendered as
+`ChaO ja (JP: 15th Aug)`. The origin is the film's `production_countries[0]`
+from TMDB — not whichever territory happens to release earliest, which a first
+pass at this got wrong: a US tentpole opening a day early in France or Belgium
+during an international rollout is not "a French film", and labelling it that
+way was worse than showing no bracket at all. Both columns stay `NULL` when
+there's nothing extra to say: a regional Indian film releases day-and-date
+within India (no second date exists), and a title with no known India date at
+all just shows the one date it has.
+
+    python scripts/sync_calendar_tmdb.py --months 6
+    python scripts/sync_theatrical_district.py
+
+Both scripts enrich existing rows rather than overwrite them (every updated
+column is a `COALESCE` that keeps whatever is already there) — the same
+convention `sync_calendar_tmdb.py` already used for editorial CSV rows. The
+trade-off: a row TMDB got to first with a *wrong* value (e.g. `Judaa` recorded
+as `en` when district.in correctly has it as `pa`, Punjabi) keeps that wrong
+value even after a more accurate source runs, since a non-null field is never
+replaced. Fixing a specific known-wrong row is a manual `UPDATE`, not something
+either sync script will do automatically.
 
 ## News augmentation (why the digest is fuller than TMDB alone)
 
