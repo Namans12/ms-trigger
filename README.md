@@ -320,6 +320,27 @@ value even after a more accurate source runs, since a non-null field is never
 replaced. Fixing a specific known-wrong row is a manual `UPDATE`, not something
 either sync script will do automatically.
 
+**Duplicate releases.** `calendar_entries` is unique on `(release_date, title,
+entry_type)` — not on `tmdb_id`. Two rows can independently resolve to the
+same `tmdb_id` whenever their title strings differ even slightly (a case
+difference, an abbreviated title, a working title later replaced by the
+announced one), and once linked the unique constraint no longer catches it —
+found in production as "Mirzapur" and "Mirzapur: The Movie" both rendering as
+separate theatrical releases on the same date.
+`scripts/reconcile_calendar_duplicates.py` finds rows sharing a `tmdb_id` and
+resolves each group one of three ways: **dedupe** (the losing title still
+finds the shared id when searched fresh on TMDB, or is a recognisable
+placeholder like "Untitled ... Film" — merge its fields into the row matching
+TMDB's canonical title, then remove it), **unlink** (the losing title finds
+nothing on TMDB at all — it's a real, different, not-yet-catalogued release
+that a fuzzy matcher forced onto the wrong entry, so only the bad `tmdb_id`
+link is cleared, not the row), or **manual review** (nothing in the group
+matches TMDB's title — left untouched rather than guessed at). Safe to
+re-run; a clean database just reports zero groups.
+
+    python scripts/reconcile_calendar_duplicates.py --dry-run
+    python scripts/reconcile_calendar_duplicates.py
+
 ## News augmentation (why the digest is fuller than TMDB alone)
 
 TMDB's India OTT discover feeds are incomplete and often lag the real streaming

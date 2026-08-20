@@ -1,12 +1,14 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, Loader2 } from 'lucide-react';
+import { Search as SearchIcon, Loader2, Languages } from 'lucide-react';
 import { Movie } from '@/types/movie';
 import { searchMovies } from '@/lib/tmdb';
 import { PosterCard } from '@/components/release/PosterCard';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { fromMovie } from '@/types/digest';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { useMediaScope } from '@/hooks/useMediaScope';
+import { languageName, compareByLanguageName } from '@/lib/languages';
 
 export default function Search() {
   const wl = useWatchlistContext();
@@ -43,7 +45,33 @@ export default function Search() {
 
   // The topbar's Movies/Shows scope narrows what TMDB gave back, rather than
   // issuing a second, differently-scoped request.
-  const visible = mediaType === 'all' ? results : results.filter((m) => m.mediaType === mediaType);
+  const scoped = mediaType === 'all' ? results : results.filter((m) => m.mediaType === mediaType);
+
+  const language = params.get('language');
+  // Options come from the media-scoped results (not yet language-filtered) so
+  // picking a language never makes other options disappear from the menu.
+  const languageOptions = useMemo(() => {
+    const byName = new Map<string, string>();
+    for (const m of scoped) {
+      if (!m.originalLanguage) continue;
+      const name = languageName(m.originalLanguage);
+      if (!byName.has(name)) byName.set(name, m.originalLanguage);
+    }
+    return [...byName.values()].sort(compareByLanguageName);
+  }, [scoped]);
+
+  // Matched by display name, not raw code, so a data quirk like 'cn'/'zh' both
+  // meaning Chinese doesn't split into two silently-different filter options.
+  const visible = language
+    ? scoped.filter((m) => m.originalLanguage && languageName(m.originalLanguage) === languageName(language))
+    : scoped;
+
+  function updateParam(key: string, value: string | null) {
+    const next = new URLSearchParams(params);
+    if (!value) next.delete(key);
+    else next.set(key, value);
+    setParams(next, { replace: true });
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,17 +114,40 @@ export default function Search() {
         </div>
       )}
 
+      {languageOptions.length > 0 && (
+        <FilterSelect
+          label="Language"
+          allLabel="All languages"
+          icon={<Languages size={13} />}
+          value={language}
+          onChange={(next) => updateParam('language', next)}
+          options={languageOptions}
+          getLabel={languageName}
+        />
+      )}
+
       {visible.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {visible.length} {visible.length === 1 ? 'result' : 'results'}
           {mediaType !== 'all' && ` in ${mediaType === 'movie' ? 'movies' : 'shows'}`}
+          {language && ` · ${languageName(language)}`}
         </p>
       )}
 
-      {results.length > 0 && visible.length === 0 && (
+      {results.length > 0 && scoped.length === 0 && (
         <p className="py-12 text-center text-sm text-muted-foreground">
           {results.length} {results.length === 1 ? 'result' : 'results'}, but none are{' '}
           {mediaType === 'movie' ? 'movies' : 'shows'} — switch to All in the topbar to see them.
+        </p>
+      )}
+
+      {scoped.length > 0 && visible.length === 0 && (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          {scoped.length} {scoped.length === 1 ? 'result' : 'results'}, but none in {languageName(language)} —{' '}
+          <button type="button" onClick={() => updateParam('language', null)} className="text-accent hover:underline">
+            clear the language filter
+          </button>
+          .
         </p>
       )}
 
