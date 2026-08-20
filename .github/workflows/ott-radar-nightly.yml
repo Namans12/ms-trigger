@@ -58,6 +58,16 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scripts/sync_calendar_tmdb.py --months 6
 
+      # Regional Indian theatrical releases TMDB's own discover feed misses
+      # almost entirely — a spot-check of one real Friday found 8 of 16 films
+      # playing in Hyderabad cinemas absent from TMDB or dateless there.
+      # district.in's per-city listings cover the gap. Runs before the TMDB
+      # linker below so any new row it adds gets a chance at a poster too.
+      - name: Sync regional theatrical releases from district.in
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/sync_theatrical_district.py
+
       # Links any calendar row still missing a tmdb_id (only ever the
       # editorial CSV rows, or a future manual reseed) so it gets a poster and
       # becomes clickable. Matches on exact folded title + release year;
@@ -68,3 +78,30 @@ jobs:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scripts/backfill_calendar_tmdb.py
+
+      # Checks every already-linked row against TMDB's CURRENT data — a link
+      # made correctly can still go wrong later: TMDB renames a record
+      # (found happening mid-session to "Khalifa Part 1"), or its
+      # `original_language` disagrees with what every other write path in
+      # this app treats as ground truth. Also unlinks a title that no longer
+      # matches at all and whose date doesn't corroborate it either — a real,
+      # if rare, wrong match. Two known-bad TMDB records and one known-wrong
+      # TMDB language are excluded via a hardcoded override inside the
+      # script itself (documented there) so a fix made by hand doesn't get
+      # silently re-broken by this same step the next night.
+      - name: Verify calendar TMDB links are still correct
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/verify_calendar_tmdb_links.py
+
+      # calendar_entries is unique on (release_date, title, entry_type), not
+      # tmdb_id — two rows (a CSV-seeded one and a TMDB-discovered one, say)
+      # can independently resolve to the same tmdb_id once the line above
+      # links them, and nothing before this step would notice. Safe to run
+      # every night: a clean database just reports zero groups.
+      - name: Reconcile duplicate calendar releases
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/reconcile_calendar_duplicates.py

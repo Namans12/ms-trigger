@@ -18,6 +18,19 @@ the "matches" set (found in production — see search()'s docstring). When that
 happens, the candidate closest in release date to the calendar's own date
 wins, since that is the one signal TMDB's own result ordering doesn't use.
 
+One more sharp edge, also found in production: a row labelled 'Movie' with no
+confident movie match falls back to searching 'tv' next (see `order` in
+main()), and search()'s own year-tolerant rescue for that type can then latch
+onto a hugely popular, completely unrelated show sharing the bare title —
+"Mirzapur" (a CSV row meaning the 2026 movie "Mirzapur: The Movie") linked
+straight to the original 2018 Mirzapur TV series this way, a title match with
+no year in common at all. That rescue is real and needed (see search()'s
+docstring for the bug it fixes), so it isn't removed — it's restricted to only
+fire on the type the row's own entry_type already implied, never on the
+fallback attempt at the other type. A row like Mirzapur's now goes unmatched
+instead of confidently wrong; scripts/reconcile_calendar_duplicates.py cleans
+up any such mislink still sitting in the database from before this fix.
+
 Safe to re-run, and designed to be: it only looks at rows still missing a
 tmdb_id, so a run interrupted by a flaky network picks up where it left off.
 
@@ -52,6 +65,43 @@ from lib_relations import (  # noqa: E402
 
 REQUEST_GAP_SECONDS = 0.15
 IMG_BASE = "https://image.tmdb.org/t/p/w342"
+
+# (media_type, tmdb_id) pairs confirmed BY HAND to be a different, unrelated
+# production that merely shares a title string with a calendar row — a title
+# collision the automated match can't see through, because the string really
+# is identical (see verify_calendar_tmdb_links.py's docstring for the general
+# shape of this: title-string matching plus a release-date check catches a
+# rename, but not a same-titled decoy).
+#
+# This exists because the collision recurs on every re-run otherwise: a row
+# manually unlinked after finding this (tmdb_id set back to NULL) becomes a
+# fresh backfill candidate again, and nothing about the match itself changed —
+# the same wrong id is still the best-scoring title match TMDB will offer, so
+# without this list the very next nightly run relinks the exact same wrong
+# title. Add an entry here, never delete a row over it.
+KNOWN_WRONG_MATCHES: set[tuple[str, int]] = {
+    # "Perfect Match" (our row, a Netflix dating show) -> TMDB's "Perfect
+    # Match" (id 254821) is actually a Chinese Song Dynasty period drama.
+    ("tv", 254821),
+    # "Giant" (our row) -> TMDB's "Giant" (id 1669683) is an unrelated
+    # Ukrainian short about the Molodist Film Festival.
+    ("movie", 1669683),
+}
+
+# Title strings proven, more than once, to be too generic for title+year
+# matching to trust at all — re-running backfill after excluding one bad id
+# above just found a DIFFERENT wrong "Giant" (a Prince Naseem Hamed
+# biopic) and a different wrong "Perfect Match" (a 2002 Channel 4 game
+# show); both merely share a release year with our row, which years_match's
+# tolerance treats as good enough. A title common enough to collide twice in
+# a single genre-agnostic global search is common enough to collide a third
+# time, so these are skipped before any TMDB call is even made — cheaper and
+# safer than growing KNOWN_WRONG_MATCHES one decoy id at a time forever.
+NEVER_AUTO_MATCH_TITLES: set[str] = {"giant", "perfect match"}
+
+
+def is_too_generic_to_match(title: str) -> bool:
+    return title.strip().casefold() in NEVER_AUTO_MATCH_TITLES
 
 CANDIDATE_SQL = """
 SELECT id, title, release_date, entry_type
@@ -103,7 +153,14 @@ def _days_from(target: date, iso_date: str) -> float:
         return float("inf")
 
 
-def search(session: requests.Session, tmdb_key: str, media_type: str, title: str, release_date: date):
+def search(
+    session: requests.Session,
+    tmdb_key: str,
+    media_type: str,
+    title: str,
+    release_date: date,
+    is_primary: bool = True,
+):
     """TMDB search, returning the best-matching result or None.
 
     TMDB titles are not unique: a generic word like "King" can name two
@@ -152,6 +209,8 @@ def search(session: requests.Session, tmdb_key: str, media_type: str, title: str
         by_id = {}
         for payload in payloads:
             for result in (payload or {}).get("results", []):
+                if (media_type, result["id"]) in KNOWN_WRONG_MATCHES:
+                    continue
                 by_id[result["id"]] = result
 
         candidates = []
@@ -188,7 +247,21 @@ def search(session: requests.Session, tmdb_key: str, media_type: str, title: str
         # Every genuine match found in production had popularity several
         # times higher than any same-titled decoy; that gap is the reliable
         # part once the calendar date itself no longer disambiguates.
-        if not candidates and media_type == "tv" and not is_stripped:
+        #
+        # `is_primary` guards this: found in production, "Mirzapur" — an
+        # entry_type='Movie' row, so the caller's `order` tries "movie" first,
+        # "tv" second as a fallback — had no movie match, fell into this exact
+        # branch on the SECONDARY "tv" attempt, and the highest-popularity
+        # title match was the wildly popular original Mirzapur TV series: a
+        # completely different, unrelated production from the "Mirzapur: The
+        # Movie" this row actually meant. Popularity alone disambiguates a
+        # decoy from the real match when TV is what the source data already
+        # said this was (Sugar, Big Brother — the case above); it does not
+        # disambiguate "any TV show with this title" from "the movie this row
+        # actually is" when TV is only being tried because the expected type
+        # failed. So the rescue fires only on the primary attempt; on a
+        # fallback attempt this row is left unmatched instead of guessing.
+        if not candidates and media_type == "tv" and not is_stripped and is_primary:
             fallback = [
                 result
                 for result in by_id.values()
@@ -236,6 +309,10 @@ def main() -> int:
             print(f"{len(rows)} calendar rows still missing a TMDB id\n")
 
             for row_id, title, release_date, entry_type in rows:
+                if is_too_generic_to_match(title):
+                    print(f"  no confident match: {title!r} (skipped — too generic to match safely)")
+                    unmatched += 1
+                    continue
                 year = release_date.year if release_date else None
                 primary = expected_media_type(entry_type)
                 # Try the type the CSV implies, then the other: the editorial
@@ -246,7 +323,10 @@ def main() -> int:
                 found_type = None
                 try:
                     for media_type in order:
-                        result = search(session, tmdb_key, media_type, title, release_date)
+                        result = search(
+                            session, tmdb_key, media_type, title, release_date,
+                            is_primary=(media_type == primary),
+                        )
                         rate_limit_gap(REQUEST_GAP_SECONDS)
                         if result is not None:
                             found_type = media_type

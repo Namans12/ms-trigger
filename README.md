@@ -341,6 +341,33 @@ re-run; a clean database just reports zero groups.
     python scripts/reconcile_calendar_duplicates.py --dry-run
     python scripts/reconcile_calendar_duplicates.py
 
+**A link that was correct can stop being correct.** `backfill_calendar_tmdb.py`
+only ever runs once per row (it selects `WHERE tmdb_id IS NULL`), so a link it
+made is never revisited — but TMDB's own data for that id can still change.
+Mid-session, TMDB renamed a linked record from "Khalifa Part 1" to "Khalifa:
+The Ruler"; separately, ~40 linked rows had a `language` that no longer agreed
+with TMDB's `original_language`, the field every other write path here treats
+as ground truth. `scripts/verify_calendar_tmdb_links.py` re-checks every linked
+row against TMDB's *current* data: a title that no longer matches is a rename
+if the release date still agrees (title + language refreshed, link kept) or a
+wrong match if it doesn't (unlinked, same reasoning as the duplicate case
+above); a `language` disagreement on a title that still matches is corrected
+to TMDB's current value.
+
+It cannot catch a wrong match whose title string is byte-identical to the real
+one (TMDB has more than one "Perfect Match", more than one "Giant" — decoys
+found only by reading the overview by hand) — `KNOWN_WRONG_MATCHES` and
+`NEVER_AUTO_MATCH_TITLES` in `backfill_calendar_tmdb.py` are the record of
+that: without them, unlinking a decoy just makes the row a fresh candidate
+that finds a *different* wrong entry on the next run, which is exactly what
+happened once, in production, before those existed. A `LANGUAGE_OVERRIDES`
+map in `verify_calendar_tmdb_links.py` plays the same role for one TMDB record
+(Judaa) whose own `original_language` is simply wrong. Extend these by hand
+when a new one turns up; don't expect either script to find it unassisted.
+
+    python scripts/verify_calendar_tmdb_links.py --dry-run
+    python scripts/verify_calendar_tmdb_links.py
+
 ## News augmentation (why the digest is fuller than TMDB alone)
 
 TMDB's India OTT discover feeds are incomplete and often lag the real streaming
@@ -380,6 +407,15 @@ article lists. `news_sources.py` closes that gap:
      future confidence signal, not a round-up harvester.
    - Ruled out: **IMDb's India new-releases page** (403, bot-blocked) and
      **WION's** RSS/tag feeds (403).
+   - **Sacnilk** (`sacnilk.com/entertainmenttopbar/Upcoming_Movies`) — found
+     while chasing the one title (Bhagyashaali) neither district.in nor
+     Siasat had. Real, structured (`@type: Movie` JSON-LD with a confirmed
+     date), and it's what closed that gap. Its poster URLs 410 on this one
+     sample — worth re-checking before trusting them at scale — and its
+     `inLanguage` field looked templated rather than reflecting the film's
+     actual spoken language (said "English" for a film Siasat's own
+     Hyderabad listing categorized as Kannada), so language still needs a
+     second source. Not yet wired into either sync script.
 2. Every candidate is then **validated and enriched against TMDB** (real title,
    language, rating, poster, watch providers, links) in `releasebot.enrich_news_candidates`.
    Anything TMDB can't confirm as a near-term movie/show is dropped — that's the
@@ -419,6 +455,19 @@ theatrical date, cinema-only titles being dropped), season resolution for
 returning shows, cross-window de-duplication, region gating of platforms, and
 the scraper's title/platform extraction. Each test names the failure it guards
 against.
+
+```bash
+npm test
+```
+
+The frontend's equivalent — [Vitest](https://vitest.dev), configured
+separately from the app's own `vite.config.ts` (`vitest.config.ts`) so the
+PWA plugin and its manifest/service-worker setup never load into a test run.
+`npm run test:watch` for the interactive runner. Currently covers
+`src/lib/languages.ts` (the ISO-code-to-display-name layer behind the
+Calendar/Search language filters) and `FilterSelect`'s `getLabel` behaviour —
+the piece that lets a filter's stored value and displayed label diverge, which
+has no other way to catch a regression before it reaches the browser.
 
 ## Staging: running the pipeline without touching production
 
