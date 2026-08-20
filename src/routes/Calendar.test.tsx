@@ -1,0 +1,161 @@
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { render, screen, within, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToolbarProvider, ToolbarOutlet } from '@/components/layout/Toolbar';
+import Calendar from './Calendar';
+import type { CalendarEntryDTO } from '../../shared/types/calendar';
+
+// The real network call — mocked so these tests exercise Calendar's own
+// filtering/rendering logic, not the API or a live database.
+vi.mock('@/lib/api', () => ({ fetchCalendarMonth: vi.fn() }));
+import { fetchCalendarMonth } from '@/lib/api';
+
+function entry(overrides: Partial<CalendarEntryDTO>): CalendarEntryDTO {
+  return {
+    releaseDate: '2026-08-21',
+    title: 'Some Film',
+    language: 'hi',
+    mediaType: 'movie',
+    kind: 'theatrical',
+    isTheatrical: true,
+    platform: null,
+    tmdbId: 1,
+    posterUrl: null,
+    rating: null,
+    overview: null,
+    origin: 'tmdb',
+    originRegion: null,
+    originReleaseDate: null,
+    ...overrides,
+  };
+}
+
+/** Toolbar portals its children into a node ToolbarOutlet provides — without
+ * both, everything Calendar renders into <Toolbar> (the language filter
+ * included) silently renders nothing. */
+function renderCalendar(initialEntries = ['/calendar?month=2026-08']) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={initialEntries}>
+        <ToolbarProvider>
+          <ToolbarOutlet />
+          <Calendar />
+        </ToolbarProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.mocked(fetchCalendarMonth).mockReset();
+});
+
+describe('Calendar language display and filter', () => {
+  const entries = [
+    entry({ title: 'Judaa', language: 'pa', tmdbId: 1 }),
+    entry({ title: 'Brahmakamala', language: 'kn', tmdbId: 2 }),
+    entry({ title: 'Bharat Desh Hai Mera', language: 'hi', tmdbId: 3 }),
+  ];
+
+  it('shows full language names, not raw ISO codes', async () => {
+    vi.mocked(fetchCalendarMonth).mockResolvedValue({ month: '2026-08', entries });
+    renderCalendar();
+
+    expect(await screen.findByText('Judaa')).toBeInTheDocument();
+    expect(screen.getByText('Punjabi')).toBeInTheDocument();
+    expect(screen.getByText('Kannada')).toBeInTheDocument();
+    // The raw code must not appear anywhere as its own text node.
+    expect(screen.queryByText('pa')).not.toBeInTheDocument();
+    expect(screen.queryByText('kn')).not.toBeInTheDocument();
+  });
+
+  it('narrows results when a language is picked, and the URL records it', async () => {
+    vi.mocked(fetchCalendarMonth).mockResolvedValue({ month: '2026-08', entries });
+    const user = userEvent.setup();
+    renderCalendar();
+
+    await screen.findByText('Judaa');
+    expect(screen.getByText('Brahmakamala')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /language/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByText('Punjabi'));
+
+    await waitFor(() => expect(screen.queryByText('Brahmakamala')).not.toBeInTheDocument());
+    expect(screen.getByText('Judaa')).toBeInTheDocument();
+  });
+
+  it('two languages that both mean Chinese collapse into one filter option', async () => {
+    vi.mocked(fetchCalendarMonth).mockResolvedValue({
+      month: '2026-08',
+      entries: [entry({ title: 'A', language: 'zh', tmdbId: 1 }), entry({ title: 'B', language: 'cn', tmdbId: 2 })],
+    });
+    const user = userEvent.setup();
+    renderCalendar();
+
+    await screen.findByText('A');
+    await user.click(screen.getByRole('button', { name: /language/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getAllByText('Chinese')).toHaveLength(1);
+
+    // And picking it must match BOTH underlying codes.
+    await user.click(within(dialog).getByText('Chinese'));
+    expect(screen.getByText('A')).toBeInTheDocument();
+    expect(screen.getByText('B')).toBeInTheDocument();
+  });
+});
+
+describe('Calendar origin-region bracket', () => {
+  it('shows a foreign home-market date in parentheses next to the language', async () => {
+    vi.mocked(fetchCalendarMonth).mockResolvedValue({
+      month: '2026-08',
+      entries: [
+        entry({
+          title: 'ChaO',
+          language: 'ja',
+          originRegion: 'JP',
+          originReleaseDate: '2025-08-15',
+        }),
+      ],
+    });
+    renderCalendar();
+
+    expect(await screen.findByText('ChaO')).toBeInTheDocument();
+    expect(screen.getByText('(JP: 15th Aug)')).toBeInTheDocument();
+  });
+
+  it('shows no bracket when there is nothing extra to say', async () => {
+    vi.mocked(fetchCalendarMonth).mockResolvedValue({
+      month: '2026-08',
+      entries: [entry({ title: 'Brahmakamala', language: 'kn', originRegion: null, originReleaseDate: null })],
+    });
+    renderCalendar();
+
+    await screen.findByText('Brahmakamala');
+    expect(screen.queryByText(/^\(/)).not.toBeInTheDocument();
+  });
+});
+
+describe('Calendar release-kind tabs', () => {
+  it('In Cinemas hides streaming and TV-network entries', async () => {
+    vi.mocked(fetchCalendarMonth).mockResolvedValue({
+      month: '2026-08',
+      entries: [
+        entry({ title: 'A Cinema Release', kind: 'theatrical', isTheatrical: true, tmdbId: 1 }),
+        entry({ title: 'A Streaming Release', kind: 'streaming', isTheatrical: false, tmdbId: 2 }),
+      ],
+    });
+    const user = userEvent.setup();
+    renderCalendar();
+
+    await screen.findByText('A Cinema Release');
+    expect(screen.getByText('A Streaming Release')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /in cinemas/i }));
+    await waitFor(() => expect(screen.queryByText('A Streaming Release')).not.toBeInTheDocument());
+    expect(screen.getByText('A Cinema Release')).toBeInTheDocument();
+  });
+});
