@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { fetchTitleDetail } from '@/lib/tmdbDetail';
@@ -39,6 +39,8 @@ function standing(beforeCount: number, afterCount: number): string {
  */
 export default function TitleConnections() {
   const { type, id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const mediaType = type === 'tv' ? 'tv' : 'movie';
   const tmdbId = Number(id);
 
@@ -72,6 +74,14 @@ export default function TitleConnections() {
   });
 
   const backTo = `/title/${mediaType}/${tmdbId}`;
+  // A real history pop, not a push to backTo — a push here is what caused the
+  // back-and-forth loop this used to have: arriving at TitleDetail via this
+  // link (a push) left Connections still sitting behind it in history, so
+  // TitleDetail's own back button (a real pop) landed back on Connections
+  // instead of wherever the user actually came from. `location.key ===
+  // 'default'` means this page has no history at all (a fresh load, a deep
+  // link, a reload) — the only case with nothing to pop back to.
+  const goBack = () => (location.key === 'default' ? navigate(backTo) : navigate(-1));
 
   // Gated on relations alone, never on TMDB. The chain is this page's whole
   // point and it comes from Postgres; the TMDB detail only decorates the
@@ -117,12 +127,13 @@ export default function TitleConnections() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <Link
-          to={backTo}
+        <button
+          type="button"
+          onClick={goBack}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft size={14} className="shrink-0" /> {originTitle ?? 'Back'}
-        </Link>
+        </button>
 
         <div>
           <div className="flex items-baseline gap-2">
