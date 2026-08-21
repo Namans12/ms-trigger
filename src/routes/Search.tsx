@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, Loader2, Languages } from 'lucide-react';
+import { Search as SearchIcon, Loader2, Globe } from 'lucide-react';
 import { Movie } from '@/types/movie';
 import { searchMovies } from '@/lib/tmdb';
 import { PosterCard } from '@/components/release/PosterCard';
@@ -118,7 +118,7 @@ export default function Search() {
         <FilterSelect
           label="Language"
           allLabel="All languages"
-          icon={<Languages size={13} />}
+          icon={<Globe size={13} />}
           value={language}
           onChange={(next) => updateParam('language', next)}
           options={languageOptions}

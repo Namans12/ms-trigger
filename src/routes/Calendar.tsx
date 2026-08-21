@@ -18,7 +18,7 @@ import {
   Star,
   Popcorn,
   MonitorPlay,
-  Languages,
+  Globe,
 } from 'lucide-react';
 
 function currentMonth(): string {
@@ -247,7 +247,7 @@ export default function Calendar() {
             <FilterSelect
               label="Language"
               allLabel="All languages"
-              icon={<Languages size={13} />}
+              icon={<Globe size={13} />}
               value={language}
               onChange={(next) => updateParam('language', next ?? 'all')}
               options={languageOptions}
