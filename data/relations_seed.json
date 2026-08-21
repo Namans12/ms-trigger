@@ -174,5 +174,57 @@
         "reason": "Referenced by name in dialogue as the model for the film's own over-the-top action-movie climax."
       }
     ]
+  },
+  {
+    "from": {
+      "media_type": "movie",
+      "tmdb_id": 1003596,
+      "title": "Avengers: Doomsday",
+      "year": 2026
+    },
+    "must": [
+      {
+        "title": "Thunderbolts*",
+        "year": 2025,
+        "direction": "before",
+        "confidence": 0.8,
+        "reason": "Doomsday's 'New Avengers' team — Bucky, Yelena, Walker, Ghost, Red Guardian and Sentry/Void — is the team assembled at the end of this film; you need to know who they are and how they got the name."
+      },
+      {
+        "title": "The Fantastic 4: First Steps",
+        "year": 2025,
+        "direction": "before",
+        "confidence": 0.8,
+        "reason": "This film ends with Reed Richards' family crossing out of their own universe into the mainline MCU — that's why the Fantastic Four are suddenly present in Doomsday's story at all."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": {
+      "media_type": "movie",
+      "tmdb_id": 1228710,
+      "title": "The Mandalorian and Grogu",
+      "year": 2026
+    },
+    "must": [
+      {
+        "title": "The Mandalorian",
+        "year": 2019,
+        "media_type": "tv",
+        "direction": "before",
+        "confidence": 0.9,
+        "reason": "Direct continuation of Din Djarin and Grogu's story, picking up their bond and the New Republic setting established across three seasons."
+      }
+    ],
+    "can": [
+      {
+        "title": "The Book of Boba Fett",
+        "year": 2021,
+        "media_type": "tv",
+        "confidence": 0.65,
+        "reason": "Grogu's choice between Jedi training and staying with Din — the emotional hinge of his arc — plays out in this show's later chapters."
+      }
+    ]
   }
 ]
