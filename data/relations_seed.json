@@ -1250,5 +1250,232 @@
       "reason": "Set in the Empire's early years after Order 66 and Anakin's fall into Darth Vader, both depicted here, which color Kanan's trauma as a hunted Jedi survivor."
     }
   ]
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 60059, "title": "Better Call Saul", "year": 2015 },
+  "must": [
+    {
+      "title": "Breaking Bad",
+      "year": 2008,
+      "media_type": "tv",
+      "direction": "before",
+      "confidence": 0.8,
+      "reason": "The final season's black-and-white \"Gene\" timeline picks up in the aftermath of Breaking Bad's finale, and the last stretch of episodes leans directly on Walter White, Jesse Pinkman, and the collapse of the Heisenberg empire."
+    }
+  ],
+  "can": []
+},
+{
+  "from": { "media_type": "movie", "tmdb_id": 559969, "title": "El Camino: A Breaking Bad Movie", "year": 2019 },
+  "must": [
+    {
+      "title": "Breaking Bad",
+      "year": 2008,
+      "media_type": "tv",
+      "direction": "before",
+      "confidence": 1.0,
+      "reason": "Picks up in the minutes after the series finale, following Jesse Pinkman's escape and the immediate fallout of Walter White's death."
+    }
+  ],
+  "can": []
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 94997, "title": "House of the Dragon", "year": 2022 },
+  "must": [],
+  "can": [
+    {
+      "title": "Game of Thrones",
+      "year": 2011,
+      "media_type": "tv",
+      "confidence": 0.7,
+      "reason": "Knowing how House Targaryen's dynasty and its dragons ultimately collapse two centuries later gives the succession war and family infighting shown here a heavy layer of dramatic irony."
+    }
+  ]
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 224372, "title": "A Knight of the Seven Kingdoms", "year": 2026 },
+  "must": [],
+  "can": [
+    {
+      "title": "Game of Thrones",
+      "year": 2011,
+      "media_type": "tv",
+      "confidence": 0.65,
+      "reason": "The young squire Egg is revealed to be the future King Aegon V, an ancestor whose eventual reign and the Targaryen line's fate only carry weight once you know where that lineage ends up."
+    },
+    {
+      "title": "House of the Dragon",
+      "year": 2022,
+      "media_type": "tv",
+      "confidence": 0.55,
+      "reason": "Set about a century after the Dance of the Dragons civil war shown there, and Dunk and Egg's world of scattered, diminished dragons only lands with that history in mind."
+    }
+  ]
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 299167, "title": "Dutton Ranch", "year": 2026 },
+  "must": [
+    {
+      "title": "Yellowstone",
+      "year": 2018,
+      "media_type": "tv",
+      "direction": "before",
+      "confidence": 0.9,
+      "reason": "Picks up with Rip and Beth Dutton fleeing to South Texas to escape \"the ghosts of Yellowstone\" — their relationship, and what they're running from, is the whole story of that series."
+    }
+  ],
+  "can": []
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 171802, "title": "Blade Runner 2099", "year": 2026 },
+  "must": [
+    {
+      "title": "Blade Runner 2049",
+      "year": 2017,
+      "media_type": "movie",
+      "direction": "before",
+      "confidence": 0.9,
+      "reason": "Set fifty years after that film's events, in the Los Angeles it left behind, and builds directly on its unresolved questions about replicants and what became of them."
+    }
+  ],
+  "can": []
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 213562, "title": "Crystal Lake", "year": 2026 },
+  "must": [],
+  "can": [
+    {
+      "title": "Friday the 13th",
+      "year": 1980,
+      "media_type": "movie",
+      "confidence": 0.7,
+      "reason": "A prequel centered on Pam Voorhees before she becomes the killer at Camp Crystal Lake in the original film — knowing what she does there is most of this show's dramatic irony."
+    }
+  ]
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 273207, "title": "Neagley", "year": 2026 },
+  "must": [],
+  "can": [
+    {
+      "title": "Reacher",
+      "year": 2022,
+      "media_type": "tv",
+      "confidence": 0.7,
+      "reason": "Frances Neagley draws directly on everything she learned from Jack Reacher and her time in the 110th Special Investigators, introduced in that series."
+    }
+  ]
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 124394, "title": "Power Book III: Raising Kanan", "year": 2021 },
+  "must": [],
+  "can": [
+    {
+      "title": "Power",
+      "year": 2014,
+      "media_type": "tv",
+      "confidence": 0.7,
+      "reason": "A prequel to Power following Kanan Stark's coming of age — knowing the ruthless man he eventually becomes there gives this origin story its weight."
+    }
+  ]
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 220102, "title": "Spider-Noir", "year": 2026 },
+  "must": [],
+  "can": [
+    {
+      "title": "Spider-Man: Into the Spider-Verse",
+      "year": 2018,
+      "media_type": "movie",
+      "confidence": 0.6,
+      "reason": "Built around the Spider-Man Noir persona that film introduced — an aging, hard-boiled 1930s version of Spider-Man now living as a washed-up private eye."
+    }
+  ]
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 103516, "title": "Star Trek: Strange New Worlds", "year": 2022 },
+  "must": [],
+  "can": [
+    {
+      "title": "Star Trek: Discovery",
+      "year": 2017,
+      "media_type": "tv",
+      "confidence": 0.55,
+      "reason": "Pike, Spock, and Number One were introduced as this era's Enterprise crew during that series' second season before spinning off into their own show here."
+    }
+  ]
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 284833, "title": "Avatar: Seven Havens", "year": 2026 },
+  "must": [],
+  "can": [
+    {
+      "title": "The Legend of Korra",
+      "year": 2012,
+      "media_type": "tv",
+      "confidence": 0.75,
+      "reason": "Set as the direct successor to Korra as Avatar — the new Avatar's fraught reception as \"humanity's destroyer\" only makes sense against how Korra's era and legacy ended."
+    },
+    {
+      "title": "Avatar: The Last Airbender",
+      "year": 2005,
+      "media_type": "tv",
+      "confidence": 0.5,
+      "reason": "Establishes the Avatar cycle, bending, and the spirit world this story's entire premise is built on."
+    }
+  ]
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 84773, "title": "The Lord of the Rings: The Rings of Power", "year": 2022 },
+  "must": [],
+  "can": [
+    {
+      "title": "The Lord of the Rings: The Fellowship of the Ring",
+      "year": 2001,
+      "media_type": "movie",
+      "confidence": 0.6,
+      "reason": "Set thousands of years earlier, so knowing how Sauron, the One Ring, and the fates of Elrond and Galadriel eventually play out gives this show's forging of the Rings real dramatic irony."
+    }
+  ]
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 219760, "title": "The Terminal List: Dark Wolf", "year": 2025 },
+  "must": [],
+  "can": [
+    {
+      "title": "The Terminal List",
+      "year": 2022,
+      "media_type": "tv",
+      "confidence": 0.65,
+      "reason": "A prequel following Ben Edwards' descent into CIA black ops — seeing where that path leaves him recontextualizes his role alongside James Reece in the original series."
+    }
+  ]
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 194583, "title": "The Walking Dead: Dead City", "year": 2023 },
+  "must": [
+    {
+      "title": "The Walking Dead",
+      "year": 2010,
+      "media_type": "tv",
+      "direction": "before",
+      "confidence": 0.85,
+      "reason": "Maggie and Negan are forced together despite Negan murdering Maggie's husband Glenn — that history, and the fragile truce built after it, is the entire tension driving this series."
+    }
+  ],
+  "can": []
+},
+{
+  "from": { "media_type": "tv", "tmdb_id": 304842, "title": "The Drop: A Snowfall Saga", "year": 2026 },
+  "must": [],
+  "can": [
+    {
+      "title": "Snowfall",
+      "year": 2017,
+      "media_type": "tv",
+      "confidence": 0.55,
+      "reason": "A follow-on saga in the same Los Angeles street-economy world Snowfall built around the 1980s crack epidemic, now moving into the exploitation of the 1990s rap industry."
+    }
+  ]
 }
 ]
