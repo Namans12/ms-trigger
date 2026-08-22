@@ -26,7 +26,6 @@ export default function Home() {
   const windowKey: WindowKey = params.get('window') === 'coming_up' ? 'coming_up' : 'out_now';
   const section = (params.get('section') as SectionFilter) || 'all';
   const platform = params.get('platform') || 'all';
-  const search = params.get('q') || '';
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['digest', 'current'],
@@ -47,7 +46,7 @@ export default function Home() {
   // shares this single lookup instead of each fetching its own subset.
   const allWindowItems = win ? Object.values(win.sections).flat().map(fromDigestDTO) : [];
   const ratingFor = useRatings(allWindowItems);
-  const filters = { mediaType, platform, search };
+  const filters = { mediaType, platform };
   const platforms = data
     ? allProviders([
         ...Object.values(data.out_now.sections).flat().map(fromDigestDTO),
@@ -72,8 +71,6 @@ export default function Home() {
           platform={platform}
           onPlatformChange={(p) => updateParam('platform', p)}
           platforms={platforms}
-          search={search}
-          onSearchChange={(q) => updateParam('q', q)}
           leading={
             <Segmented
               options={WINDOW_OPTIONS}

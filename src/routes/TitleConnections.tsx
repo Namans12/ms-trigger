@@ -4,12 +4,11 @@ import { toast } from 'sonner';
 import { fetchTitleDetail } from '@/lib/tmdbDetail';
 import { useAuth } from '@/hooks/useAuth';
 import { useRelations } from '@/hooks/useRelations';
-import { MAX_DEPTH, relatedToMovie, suppressRelation, type RelatedTitle } from '@/lib/relations';
+import { MAX_DEPTH, suppressRelation, type RelatedTitle } from '@/lib/relations';
 import { TitleTimeline, type TimelineEntry } from '@/components/release/TitleTimeline';
-import { PosterRow } from '@/components/release/PosterRow';
 import { ArrowLeft, Loader2, ListOrdered, Popcorn } from 'lucide-react';
 
-function toEntry(related: RelatedTitle): TimelineEntry {
+function toEntry(related: RelatedTitle, kind: 'must' | 'can'): TimelineEntry {
   return {
     key: `${related.mediaType}-${related.tmdbId}`,
     title: related.title,
@@ -19,7 +18,19 @@ function toEntry(related: RelatedTitle): TimelineEntry {
     href: `/title/${related.mediaType}/${related.tmdbId}`,
     isCurrent: false,
     tmdbId: related.tmdbId,
+    kind,
+    reason: related.reason,
   };
+}
+
+/** Release date ascending, undated entries last — a can-watch edge doesn't
+ * carry a before/after direction (see docs/relations-seed-prompt.md), so its
+ * spot in the merged line is wherever it falls chronologically, the same as
+ * everything else here. */
+function byReleaseDate(a: TimelineEntry, b: TimelineEntry): number {
+  if (!a.releaseDate) return 1;
+  if (!b.releaseDate) return -1;
+  return a.releaseDate.localeCompare(b.releaseDate);
 }
 
 /** Where the viewed title sits in its chain, in words. */
@@ -106,23 +117,33 @@ export default function TitleConnections() {
   const originPoster = relations?.origin?.posterUrl ?? detail?.posterUrl ?? null;
   const originDate = relations?.origin?.releaseDate ?? detail?.releaseDate?.slice(0, 10) ?? null;
 
-  // Watch order: prerequisites (oldest first), the title you're on, then what
-  // follows. Both halves arrive from the API already sorted by release date.
+  // The required chain (before/current/after) and every can-watch title share
+  // one chronological line — a can edge has no before/after direction of its
+  // own (see toEntry's sort), so its place in the merged line is wherever its
+  // release date actually falls, same as everything else. TitleTimeline tells
+  // the two kinds apart visually (a dashed rail segment and a muted node for
+  // 'can'), rather than this splitting them into separate lists.
+  const mustCount = before.length + 1 + after.length;
+  const currentEntry: TimelineEntry = {
+    key: `current-${mediaType}-${tmdbId}`,
+    title: originTitle ?? 'This title',
+    posterUrl: originPoster,
+    releaseDate: originDate,
+    mediaType,
+    isCurrent: true,
+    tmdbId,
+    kind: 'must',
+    reason: null,
+  };
   const entries: TimelineEntry[] = [
-    ...before.map(toEntry),
-    {
-      key: `current-${mediaType}-${tmdbId}`,
-      title: originTitle ?? 'This title',
-      posterUrl: originPoster,
-      releaseDate: originDate,
-      mediaType,
-      isCurrent: true,
-      tmdbId,
-    },
-    ...after.map(toEntry),
-  ];
+    ...before.map((r) => toEntry(r, 'must')),
+    currentEntry,
+    ...after.map((r) => toEntry(r, 'must')),
+    ...canWatch.map((r) => toEntry(r, 'can')),
+  ].sort(byReleaseDate);
 
-  const hasChain = before.length > 0 || after.length > 0;
+  const hasMustChain = before.length > 0 || after.length > 0;
+  const hasTimeline = hasMustChain || canWatch.length > 0;
 
   return (
     <div className="space-y-6">
@@ -137,19 +158,22 @@ export default function TitleConnections() {
 
         <div>
           <div className="flex items-baseline gap-2">
-            <span className="text-accent">{hasChain ? <ListOrdered size={16} /> : <Popcorn size={16} />}</span>
+            <span className="text-accent">{hasMustChain ? <ListOrdered size={16} /> : <Popcorn size={16} />}</span>
             <h1 className="font-display text-xl font-bold leading-none text-foreground sm:text-2xl">
-              {hasChain ? 'Watch order' : 'Connections'}
+              {hasMustChain ? 'Watch order' : 'Connections'}
             </h1>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            {hasChain ? (
+            {hasMustChain ? (
               <>
                 <span className="font-semibold text-foreground">
-                  Part {before.length + 1} of {entries.length}
+                  Part {before.length + 1} of {mustCount}
                 </span>{' '}
                 — {standing(before.length, after.length)}
+                {canWatch.length > 0 && ' A few more, dashed below, are worth a look but not required.'}
               </>
+            ) : canWatch.length > 0 ? (
+              'Nothing else is required to follow this one, but a few titles below are worth a look.'
             ) : (
               'Nothing else is required to follow this one — it stands on its own.'
             )}
@@ -157,7 +181,7 @@ export default function TitleConnections() {
         </div>
       </div>
 
-      {hasChain && (
+      {hasTimeline && (
         <TitleTimeline
           entries={entries}
           onSuppress={
@@ -166,25 +190,6 @@ export default function TitleConnections() {
               : undefined
           }
         />
-      )}
-
-      {canWatch.length > 0 && (
-        <div className={hasChain ? 'border-t border-border pt-6' : ''}>
-          <PosterRow
-            title="Can Watch"
-            subtitle="Nice to have seen, not required"
-            icon={<Popcorn size={16} />}
-            items={canWatch.map(relatedToMovie)}
-            reasonFor={(movie) =>
-              canWatch.find((r) => r.tmdbId === movie.id && r.mediaType === movie.mediaType)?.reason
-            }
-            onSuppress={
-              isAuthenticated
-                ? (movie) => suppress.mutate({ mediaType: movie.mediaType, tmdbId: movie.id })
-                : undefined
-            }
-          />
-        </div>
       )}
     </div>
   );

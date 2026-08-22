@@ -13,18 +13,11 @@ export const SECTION_LABELS: Record<SectionKey, string> = {
 export interface DigestFilters {
   mediaType: "all" | "movie" | "tv";
   platform: string; // "all" or an exact provider name
-  search: string;
 }
 
 export function matchesFilters(item: ReleaseItem, filters: DigestFilters): boolean {
   if (filters.mediaType !== "all" && item.mediaType !== filters.mediaType) return false;
   if (filters.platform !== "all" && !(item.providers || []).includes(filters.platform)) return false;
-  if (filters.search) {
-    const q = filters.search.toLowerCase();
-    const inTitle = item.title.toLowerCase().includes(q);
-    const inOverview = (item.overview || "").toLowerCase().includes(q);
-    if (!inTitle && !inOverview) return false;
-  }
   return true;
 }
 

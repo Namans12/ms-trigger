@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Film, Tv, MapPin, ThumbsDown } from 'lucide-react';
+import { Film, Tv, MapPin, ThumbsDown, Popcorn } from 'lucide-react';
 import { formatReleaseDate } from '@/lib/relations';
 import { useScrollProgress } from '@/hooks/useScrollProgress';
 
@@ -24,6 +24,13 @@ export interface TimelineEntry {
   isCurrent: boolean;
   /** TMDB id of the node, used to address it when suppressing. */
   tmdbId: number;
+  /** 'can' nodes are optional detours slotted into the same chronological
+   * line as the required 'must' chain — see TitleConnections, which merges
+   * both into one sorted list rather than showing Can Watch as its own row. */
+  kind: 'must' | 'can';
+  /** Shown on the card when present — required on a 'can' edge, occasionally
+   * present on a 'must' one, per docs/relations-seed-prompt.md. */
+  reason: string | null;
 }
 
 interface TitleTimelineProps {
@@ -64,6 +71,7 @@ export function TitleTimeline({ entries, onSuppress }: TitleTimelineProps) {
       {entries.map((entry, index) => {
         // Single-entry chains have no rail to travel, so the one node is lit.
         const reached = lastIndex === 0 || progress >= index / lastIndex;
+        const isCan = entry.kind === 'can';
         const card = (
           <div
             className={`flex h-full items-center gap-3 rounded-xl border px-2.5 transition-colors duration-300 ${
@@ -85,10 +93,16 @@ export function TitleTimeline({ entries, onSuppress }: TitleTimelineProps) {
             </div>
 
             <div className="min-w-0 flex-1">
-              {entry.isCurrent && (
+              {entry.isCurrent ? (
                 <span className="mb-0.5 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-accent">
                   <MapPin size={9} /> You're here
                 </span>
+              ) : (
+                isCan && (
+                  <span className="mb-0.5 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                    <Popcorn size={9} /> Can watch
+                  </span>
+                )
               )}
               <h3
                 className={`line-clamp-2 text-sm font-medium leading-tight transition-colors duration-300 ${
@@ -100,6 +114,7 @@ export function TitleTimeline({ entries, onSuppress }: TitleTimelineProps) {
               <p className="mt-0.5 text-[11px] text-muted-foreground">
                 {formatReleaseDate(entry.releaseDate) || 'Release date unknown'}
               </p>
+              {entry.reason && <p className="mt-1 line-clamp-2 text-[11px] italic text-muted-foreground/80">{entry.reason}</p>}
             </div>
 
             {/* Never on the current node — you cannot be a wrong prerequisite
@@ -123,17 +138,27 @@ export function TitleTimeline({ entries, onSuppress }: TitleTimelineProps) {
         );
 
         return (
-          <div
-            key={entry.key}
-            className="grid grid-cols-[44px_1fr] gap-3"
-            style={{ height: ROW_HEIGHT }}
-          >
+          <div key={entry.key} className="relative grid grid-cols-[44px_1fr] gap-3" style={{ height: ROW_HEIGHT }}>
+            {/* A can-watch node breaks the solid rail into a dashed segment
+                for its own row, on both the approach and the exit — "this
+                stretch is an optional detour", not part of the required
+                path. Painted over the continuous solid rail behind it. */}
+            {isCan && (
+              <div
+                aria-hidden
+                className="absolute left-[20px] border-l-2 border-dashed border-muted-foreground/60"
+                style={{ top: 0, bottom: 0 }}
+              />
+            )}
+
             <div className="flex h-full items-center justify-center">
               <div
                 className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-bold tabular-nums transition-all duration-300 ${
-                  reached
-                    ? 'border-accent bg-accent text-accent-foreground'
-                    : 'border-border bg-card text-muted-foreground'
+                  isCan
+                    ? 'border-dashed border-muted-foreground bg-secondary text-muted-foreground'
+                    : reached
+                      ? 'border-accent bg-accent text-accent-foreground'
+                      : 'border-border bg-card text-muted-foreground'
                 } ${entry.isCurrent ? 'ring-2 ring-accent ring-offset-2 ring-offset-background' : ''}`}
               >
                 {index + 1}
