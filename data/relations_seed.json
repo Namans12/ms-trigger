@@ -97,6 +97,14 @@
         "direction": "before",
         "confidence": 0.85,
         "reason": "The multiverse-fracturing spell Doctor Strange casts — and the price he's already paid for meddling with reality — is the direct fallout of No Way Home."
+      },
+      {
+        "title": "WandaVision",
+        "year": 2021,
+        "media_type": "tv",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "Wanda's command of chaos magic, her discovery of the Darkhold, and her broken state after losing her sons and Vision all carry over directly from this show."
       }
     ],
     "can": []
@@ -226,5 +234,469 @@
         "reason": "Grogu's choice between Jedi training and staying with Din — the emotional hinge of his arc — plays out in this show's later chapters."
       }
     ]
+  },
+  {
+    "from": { "media_type": "tv", "tmdb_id": 85271, "title": "WandaVision", "year": 2021 },
+    "must": [
+      {
+        "title": "Avengers: Endgame",
+        "year": 2019,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "The show opens directly from Wanda's grief over Vision's death and her isolation after the final battle here — the entire premise is her coping with that loss."
+      }
+    ],
+    "can": [
+      {
+        "title": "Avengers: Age of Ultron",
+        "year": 2015,
+        "media_type": "movie",
+        "confidence": 0.6,
+        "reason": "Vision's creation and his and Wanda's first real connection happen in this film, giving weight to what she's recreating in Westview."
+      }
+    ]
+  },
+  {
+    "from": { "media_type": "tv", "tmdb_id": 84958, "title": "Loki", "year": 2021 },
+    "must": [
+      {
+        "title": "Avengers: Endgame",
+        "year": 2019,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "This Loki only exists because the 2012 version escapes with the Tesseract during Endgame's time heist — without that scene there's no explanation for how he's alive or where he is."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "tv", "tmdb_id": 88329, "title": "Hawkeye", "year": 2021 },
+    "must": [
+      {
+        "title": "Avengers: Endgame",
+        "year": 2019,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.8,
+        "reason": "Clint's guilt and his Ronin killing spree, which the show is actively atoning for, follow directly from Natasha's death and the five-year gap depicted here."
+      },
+      {
+        "title": "Black Widow",
+        "year": 2021,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "Yelena Belova's entire motivation for hunting Clint — believing he murdered her sister Natasha — and her established skills and gear come directly from this film."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "tv", "tmdb_id": 114472, "title": "Secret Invasion", "year": 2023 },
+    "must": [
+      {
+        "title": "Captain Marvel",
+        "year": 2019,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.8,
+        "reason": "Nick Fury's decades-long alliance with Talos and the Skrulls' displaced, homeless status — the whole engine of the invasion plot — is established here."
+      }
+    ],
+    "can": [
+      {
+        "title": "Spider-Man: Far From Home",
+        "year": 2019,
+        "media_type": "movie",
+        "confidence": 0.65,
+        "reason": "This film's mid-credits reveal that 'Fury' had actually been Talos in disguise for its entire runtime is the exact kind of Skrull-impersonation twist the show's paranoia is built on."
+      }
+    ]
+  },
+  {
+    "from": { "media_type": "tv", "tmdb_id": 92783, "title": "She-Hulk: Attorney at Law", "year": 2022 },
+    "must": [],
+    "can": [
+      {
+        "title": "Shang-Chi and the Legend of the Ten Rings",
+        "year": 2021,
+        "media_type": "movie",
+        "confidence": 0.65,
+        "reason": "The season's cold-open illegal cage match against Abomination directly continues that film's post-credits scene, where Wong recruits him to fight."
+      }
+    ]
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 609681, "title": "The Marvels", "year": 2023 },
+    "must": [
+      {
+        "title": "Captain Marvel",
+        "year": 2019,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "Direct continuation of Carol Danvers' story, powers and unresolved relationships from the first film."
+      },
+      {
+        "title": "Ms. Marvel",
+        "year": 2022,
+        "media_type": "tv",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "Kamala Khan's bangle and the light-based entanglement power at the center of the plot are established across this show."
+      },
+      {
+        "title": "WandaVision",
+        "year": 2021,
+        "media_type": "tv",
+        "direction": "before",
+        "confidence": 0.8,
+        "reason": "Monica Rambeau's light-based powers come specifically from crossing the Hex's energy barrier in this show's finale."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 11, "title": "Star Wars", "year": 1977 },
+    "must": [
+      {
+        "title": "Rogue One: A Star Wars Story",
+        "year": 2016,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "Rogue One ends in the immediate seconds before this film begins, delivering the stolen Death Star plans directly into Leia's hands."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 1891, "title": "The Empire Strikes Back", "year": 1980 },
+    "must": [
+      {
+        "title": "Star Wars",
+        "year": 1977,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.95,
+        "reason": "Direct continuation of the same story and cast."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 1892, "title": "Return of the Jedi", "year": 1983 },
+    "must": [
+      {
+        "title": "The Empire Strikes Back",
+        "year": 1980,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.95,
+        "reason": "Direct continuation of the same story and cast."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 1894, "title": "Star Wars: Episode II - Attack of the Clones", "year": 2002 },
+    "must": [
+      {
+        "title": "Star Wars: Episode I - The Phantom Menace",
+        "year": 1999,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.9,
+        "reason": "Direct continuation of the same story and cast."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 1895, "title": "Star Wars: Episode III - Revenge of the Sith", "year": 2005 },
+    "must": [
+      {
+        "title": "Star Wars: Episode II - Attack of the Clones",
+        "year": 2002,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.95,
+        "reason": "Direct continuation of the same story and cast."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 140607, "title": "Star Wars: The Force Awakens", "year": 2015 },
+    "must": [
+      {
+        "title": "Return of the Jedi",
+        "year": 1983,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "Picks up the original trilogy's characters and galaxy roughly 30 years after Return of the Jedi's ending."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 181808, "title": "Star Wars: The Last Jedi", "year": 2017 },
+    "must": [
+      {
+        "title": "Star Wars: The Force Awakens",
+        "year": 2015,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.95,
+        "reason": "Direct continuation of the same story and cast."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 181812, "title": "Star Wars: The Rise of Skywalker", "year": 2019 },
+    "must": [
+      {
+        "title": "Star Wars: The Last Jedi",
+        "year": 2017,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.95,
+        "reason": "Direct continuation of the same story and cast."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "tv", "tmdb_id": 92830, "title": "Obi-Wan Kenobi", "year": 2022 },
+    "must": [
+      {
+        "title": "Star Wars: Episode III - Revenge of the Sith",
+        "year": 2005,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "Anakin's fall, Order 66 and Obi-Wan's defeat of him are the entire premise the show picks up from — Vader's identity and Obi-Wan's guilt only make sense with this context."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 330459, "title": "Rogue One: A Star Wars Story", "year": 2016 },
+    "must": [
+      {
+        "title": "Andor",
+        "year": 2022,
+        "media_type": "tv",
+        "direction": "before",
+        "confidence": 0.75,
+        "reason": "Andor's final season ends in the immediate lead-up to the Death Star plans heist, following Cassian Andor, Mon Mothma and the Rebellion's maneuvering that this film picks up directly."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "tv", "tmdb_id": 114461, "title": "Ahsoka", "year": 2023 },
+    "must": [
+      {
+        "title": "Star Wars Rebels",
+        "year": 2014,
+        "media_type": "tv",
+        "direction": "before",
+        "confidence": 0.8,
+        "reason": "Sabine, Ezra and Grand Admiral Thrawn, along with the unresolved fate the show is built around, come directly from Rebels' finale."
+      }
+    ],
+    "can": [
+      {
+        "title": "The Mandalorian",
+        "year": 2019,
+        "media_type": "tv",
+        "confidence": 0.65,
+        "reason": "Set after Mandalorian season 3, continuing the New Republic setting and the search for Grand Admiral Thrawn begun there."
+      },
+      {
+        "title": "Star Wars: The Clone Wars",
+        "year": 2008,
+        "media_type": "tv",
+        "confidence": 0.6,
+        "reason": "Ahsoka's identity as Anakin Skywalker's former padawan, and the relationships that still define her, are built across this series."
+      }
+    ]
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 209112, "title": "Batman v Superman: Dawn of Justice", "year": 2016 },
+    "must": [
+      {
+        "title": "Man of Steel",
+        "year": 2013,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.9,
+        "reason": "Direct continuation of Superman's public reveal and the Metropolis destruction that turns the world — and Bruce Wayne — against him."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 141052, "title": "Justice League", "year": 2017 },
+    "must": [
+      {
+        "title": "Batman v Superman: Dawn of Justice",
+        "year": 2016,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.9,
+        "reason": "Superman's death at the end of this film is the specific reason Bruce and Diana are racing to assemble the League."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 791373, "title": "Zack Snyder's Justice League", "year": 2021 },
+    "must": [
+      {
+        "title": "Batman v Superman: Dawn of Justice",
+        "year": 2016,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.9,
+        "reason": "Superman's death at the end of this film is the specific reason Bruce and Diana are racing to assemble the League."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 127585, "title": "X-Men: Days of Future Past", "year": 2014 },
+    "must": [
+      {
+        "title": "X-Men: The Last Stand",
+        "year": 2006,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.8,
+        "reason": "The dystopian future opening is the direct fallout of the mutant-cure war and deaths at the end of the original trilogy."
+      },
+      {
+        "title": "X-Men: First Class",
+        "year": 2011,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "Wolverine is sent back to 1973 to the exact point where First Class left off, to change history alongside young Xavier and Magneto."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 246655, "title": "X-Men: Apocalypse", "year": 2016 },
+    "must": [
+      {
+        "title": "X-Men: Days of Future Past",
+        "year": 2014,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "Continues directly from the rewritten timeline and status quo Days of Future Past leaves the team in."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 320288, "title": "Dark Phoenix", "year": 2019 },
+    "must": [
+      {
+        "title": "X-Men: Apocalypse",
+        "year": 2016,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.85,
+        "reason": "Direct continuation of this cast and timeline, picking up Jean Grey's growing powers seeded there."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 533535, "title": "Deadpool & Wolverine", "year": 2024 },
+    "must": [
+      {
+        "title": "Logan",
+        "year": 2017,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.8,
+        "reason": "This Wolverine variant is explicitly running from the fate — and the timeline's end — depicted in Logan; the film's plot hinges on that specific death."
+      },
+      {
+        "title": "Deadpool 2",
+        "year": 2018,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.9,
+        "reason": "Direct numbered sequel, continuing Wade's relationship with Vanessa and the X-Force setup from that film."
+      }
+    ],
+    "can": [
+      {
+        "title": "Loki",
+        "year": 2021,
+        "media_type": "tv",
+        "confidence": 0.6,
+        "reason": "The TVA, Mobius, Paradox and the 'Sacred Timeline' pruning mechanics used as plot devices throughout the film are established in this show."
+      }
+    ]
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 373571, "title": "Godzilla: King of the Monsters", "year": 2019 },
+    "must": [
+      {
+        "title": "Godzilla",
+        "year": 2014,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.8,
+        "reason": "Direct continuation of Monarch's discovery of the Titans and Ford Brody's connection to Godzilla established there."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 399566, "title": "Godzilla vs. Kong", "year": 2021 },
+    "must": [
+      {
+        "title": "Godzilla: King of the Monsters",
+        "year": 2019,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.75,
+        "reason": "Follows the post-Titan-emergence world and Monarch's expanded operations established there."
+      },
+      {
+        "title": "Kong: Skull Island",
+        "year": 2017,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.8,
+        "reason": "Kong's character, Monarch's history with him, and the Hollow Earth concept all come directly from this film."
+      }
+    ],
+    "can": []
+  },
+  {
+    "from": { "media_type": "movie", "tmdb_id": 823464, "title": "Godzilla x Kong: The New Empire", "year": 2024 },
+    "must": [
+      {
+        "title": "Godzilla vs. Kong",
+        "year": 2021,
+        "media_type": "movie",
+        "direction": "before",
+        "confidence": 0.9,
+        "reason": "Direct continuation of Kong's rule over Hollow Earth and the Godzilla-Kong alliance formed at the end of that film."
+      }
+    ],
+    "can": []
   }
 ]
