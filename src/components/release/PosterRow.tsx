@@ -4,7 +4,7 @@ import { fromMovie } from '@/types/digest';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { useRatings } from '@/hooks/useRatings';
 import { useSeasons } from '@/hooks/useSeasons';
-import { useProviders } from '@/hooks/useProviders';
+import { useProviders, type ProvidersLookup } from '@/hooks/useProviders';
 
 interface PosterRowProps {
   title: string;
@@ -16,15 +16,25 @@ interface PosterRowProps {
   reasonFor?: (movie: Movie) => string | null | undefined;
   /** Thumbs-down, owner-only. Omit entirely for rows that shouldn't offer it. */
   onSuppress?: (movie: Movie) => void;
+  /** A lookup already covering this row's items, from a page that renders
+   * several rows at once (Browse's "For You" strips) and wants one shared
+   * providers-batch request instead of one per row -- each provider lookup is
+   * a live TMDB fan-out, not a DB-cache read like ratings/seasons, so N rows
+   * otherwise means N requests. Omit for a lone row (TitleDetail's "You may
+   * also like") and this fetches its own -- one row, one request either way. */
+  providersFor?: ProvidersLookup;
 }
 
 /** Horizontally scrolling poster row — the shared shape behind every
  * "Trending", "Because you added…" and "You may also like" strip. */
-export function PosterRow({ title, items, icon, subtitle, reasonFor, onSuppress }: PosterRowProps) {
+export function PosterRow({ title, items, icon, subtitle, reasonFor, onSuppress, providersFor }: PosterRowProps) {
   const wl = useWatchlistContext();
   const ratingFor = useRatings(items);
   const seasonsFor = useSeasons(items);
-  const providersFor = useProviders(items);
+  // Empty array when a shared lookup was passed in: useProviders' `enabled`
+  // guard turns that into a no-op, so this never fires a second request.
+  const ownProvidersFor = useProviders(providersFor ? [] : items);
+  const resolveProviders = providersFor ?? ownProvidersFor;
   if (items.length === 0) return null;
 
   return (
@@ -42,7 +52,7 @@ export function PosterRow({ title, items, icon, subtitle, reasonFor, onSuppress 
             linkTo={`/title/${movie.mediaType}/${movie.id}`}
             rating={ratingFor(movie.mediaType, movie.id)}
             seasons={seasonsFor(movie.mediaType, movie.id)}
-            providers={providersFor(movie.mediaType, movie.id)}
+            providers={resolveProviders(movie.mediaType, movie.id)}
             className="flex-shrink-0 w-[130px] sm:w-[150px]"
             onAddToWatchlist={() => wl.addToWatchlist(movie)}
             onAddToWatchLater={() => wl.addToWatchLater(movie)}

@@ -182,7 +182,12 @@ export default function TitleDetail() {
 
       {data.providers.length > 0 && (
         <div className="px-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Streaming on</p>
+          {/* Not "Streaming on" — resolveProviders' fallback tiers (see
+              lib/tmdbProxy.ts) can return purchase-only entries tagged
+              "(Buy/Rent)", or a bare "Buy/Rent" when no store name survived
+              normalization. "Streaming on Buy/Rent" would be a label that's
+              simply false; "Where to watch" is accurate for every tier. */}
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Where to watch</p>
           <p className="text-sm text-accent font-medium">{data.providers.join(', ')}</p>
         </div>
       )}

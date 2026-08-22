@@ -370,21 +370,51 @@ export function providerCacheKey(key: ProviderKey): string {
   return `${key.mediaType}:${key.id}`;
 }
 
-// A grid can plausibly ask for more titles than fit in one request budget;
-// this caps a single batch at a limit ratings' own batch endpoint also uses,
-// keeping the fan-out comfortably inside the function's request timeout.
-const MAX_PROVIDER_BATCH_KEYS = 60;
+// A grid can plausibly ask for more titles than fit in one request budget.
+// 100 matches api/ratings.ts and api/seasons.ts's own batch caps -- though
+// unlike those two (DB-cache-only, per their own comments), every key here is
+// a live TMDB fetch. That's safe to match anyway: the legs run concurrently
+// (see tmdbWatchProvidersBatch) and each now gets one attempt capped at
+// REQUEST_TIMEOUT_MS, so 100 legs in flight cost the same wall-clock worst
+// case as 10 -- the ceiling exists to bound the size of one function
+// invocation and one upstream burst, not to ration sequential latency.
+const MAX_PROVIDER_BATCH_KEYS = 100;
+
+export interface ProviderBatchResult {
+  providers: Record<string, string[]>;
+  /** True if any key failed to resolve (network error, TMDB 5xx, a 429 from
+   *  hitting TMDB's own limit with this many concurrent legs). The caller
+   *  (api/tmdb/[...path].ts) must not stamp its usual long cache lifetime on a
+   *  response where this is true — see this function's own comment on why a
+   *  failed leg is omitted rather than defaulted to `[]`. */
+  hadFailures: boolean;
+}
 
 /** Providers for many titles in one call. Every key gets its own TMDB fetch —
  * there is no bulk watch/providers endpoint — but they run in parallel and the
  * caller only makes one round trip, which is what keeps a grid of dozens of
- * posters from firing dozens of requests of its own. One title's failure
- * (a bad id, a transient TMDB error) resolves to an empty list for that key
- * only; it never fails the batch. */
+ * posters from firing dozens of requests of its own.
+ *
+ * A failed key (a bad id, a transient TMDB error, a 429) is omitted from
+ * `providers` entirely rather than mapped to `[]`. `[]` is a real, cacheable
+ * answer -- "checked, nothing to watch it on" -- and a failure is not that; the
+ * client's `useProviders` already treats a missing key as "still unknown" the
+ * same way it treats one that hasn't resolved yet, so nothing downstream reads
+ * this any differently than before. What changes is the cache: see
+ * `hadFailures`.
+ *
+ * Each leg gets exactly one attempt (`fetchWithRetry(url, 1)`), not the
+ * default three. `Promise.allSettled` below waits for the *slowest* leg to
+ * settle before returning anything -- with up to `MAX_PROVIDER_BATCH_KEYS`
+ * legs running concurrently, letting even one of them retry (worst case ~25s:
+ * three 8s timeouts plus backoff) would carry the whole batch past Vercel's
+ * 15s `maxDuration` and kill every key, not just the slow one. One attempt
+ * caps the worst case at REQUEST_TIMEOUT_MS regardless of how many legs are
+ * in flight, since they run in parallel rather than queued. */
 export async function tmdbWatchProvidersBatch(
   keys: ProviderKey[],
   region = "IN",
-): Promise<Record<string, string[]>> {
+): Promise<ProviderBatchResult> {
   const trimmed = keys.slice(0, MAX_PROVIDER_BATCH_KEYS);
   const key = requireApiKey();
 
@@ -392,16 +422,29 @@ export async function tmdbWatchProvidersBatch(
     trimmed.map(async ({ mediaType, id }) => {
       const path = mediaType === "movie" ? "movie" : "tv";
       const url = `${TMDB_BASE_URL}/${path}/${id}?api_key=${key}&append_to_response=watch/providers`;
-      const res = await fetchWithRetry(url);
+      const res = await fetchWithRetry(url, 1);
       if (!res.ok) throw new Error(`TMDB detail failed: ${res.status}`);
       return resolveProviders(await res.json(), region);
     }),
   );
 
-  const out: Record<string, string[]> = {};
+  const providers: Record<string, string[]> = {};
+  let hadFailures = false;
   trimmed.forEach((k, i) => {
     const result = results[i];
-    out[providerCacheKey(k)] = result.status === "fulfilled" ? result.value : [];
+    if (result.status === "fulfilled") {
+      providers[providerCacheKey(k)] = result.value;
+    } else {
+      hadFailures = true;
+    }
   });
-  return out;
+  if (keys.length > trimmed.length) {
+    // Not a failure (nothing was fetched and failed) -- a deliberate scope
+    // limit -- but still worth a server-side trace, since a caller silently
+    // getting fewer answers than keys it sent is otherwise invisible.
+    console.warn(
+      `[tmdb] providers-batch truncated ${keys.length - trimmed.length} of ${keys.length} requested keys`,
+    );
+  }
+  return { providers, hadFailures };
 }

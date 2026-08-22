@@ -68,11 +68,22 @@ export default function Browse() {
     ? tmdbBackdrop(`https://image.tmdb.org/t/p/w1280${heroMovie.backdropPath}`, 700)
     : undefined;
   const seasonsFor = useSeasons([...trending, ...popularMovies, ...popularTV]);
-  const providersFor = useProviders([...trending, ...popularMovies, ...popularTV]);
 
   const suggestions = (suggestionsQuery.data ?? [])
     .map((row) => ({ ...row, items: inScope(row.items) }))
     .filter((row) => row.items.length > 0);
+
+  // One shared lookup over everything this page renders -- trending, both
+  // popular rails, and every "For You" strip -- rather than each PosterRow
+  // firing its own providers-batch request. Unlike ratings/seasons (DB-cache
+  // reads), a provider lookup is a live TMDB fan-out per key, so N rows used
+  // to mean N requests; passing this down turns it back into one.
+  const providersFor = useProviders([
+    ...trending,
+    ...popularMovies,
+    ...popularTV,
+    ...suggestions.flatMap((row) => row.items),
+  ]);
 
   const handleRefresh = async () => {
     if (refreshState !== 'idle') return;
@@ -186,7 +197,13 @@ export default function Browse() {
             <span className="flex-1 h-px bg-border ml-1" />
           </div>
           {suggestions.map((row) => (
-            <PosterRow key={row.key} title={row.title} subtitle={row.subtitle} items={row.items} />
+            <PosterRow
+              key={row.key}
+              title={row.title}
+              subtitle={row.subtitle}
+              items={row.items}
+              providersFor={providersFor}
+            />
           ))}
         </div>
       )}

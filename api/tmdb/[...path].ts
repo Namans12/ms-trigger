@@ -88,8 +88,19 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       }
       case "providers-batch": {
         const keys = parseProviderKeys(url.searchParams.get("ids") ?? "");
-        body = keys.length > 0 ? await tmdbWatchProvidersBatch(keys) : {};
-        cacheControl = "public, s-maxage=3600, stale-while-revalidate=86400";
+        if (keys.length === 0) {
+          body = {};
+        } else {
+          const { providers, hadFailures } = await tmdbWatchProvidersBatch(keys);
+          body = providers;
+          // A batch where any leg failed (TMDB 429/5xx, a timeout) must not get
+          // the long cache lifetime the happy path does -- that would bake a
+          // transient rate-limit hit in as "confirmed: nothing to watch this
+          // on" for up to an hour. Retry soon instead of trusting it.
+          cacheControl = hadFailures
+            ? "public, s-maxage=30, stale-while-revalidate=60"
+            : "public, s-maxage=3600, stale-while-revalidate=86400";
+        }
         break;
       }
       case "discover": {
