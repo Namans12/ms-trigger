@@ -58,6 +58,24 @@ from lib_relations import (  # noqa: E402
 REQUEST_GAP_SECONDS = 0.1
 DEFAULT_LIMIT = 500
 
+# TMDB collections that bundle more than one narrative arc into a single
+# "collection" object. Most collections are one story told across N parts, so
+# release-date-consecutive pairs are always real prerequisites — but a saga
+# collection like TMDB id 10 ("Star Wars Collection") lists all three
+# trilogies (original, prequel, sequel) as one 9-part collection sorted by
+# release date, and the naive consecutive-pair walk invents nonsense edges at
+# the trilogy boundaries (e.g. "Return of the Jedi" before "Phantom Menace").
+#
+# Keyed by TMDB collection id, value is the size of each arc in release-date
+# order. Deliberately a short, hand-verified exception list rather than a
+# gap-detection heuristic: a real direct-sequel chain can legitimately have a
+# large release-date gap (a decade-plus between installments is common), so
+# inferring boundaries from gap size would risk severing real prerequisite
+# edges elsewhere. Anything not listed here is treated as a single arc.
+MULTI_ARC_COLLECTIONS: dict[int, tuple[int, ...]] = {
+    10: (3, 3, 3),  # Star Wars Collection: original / prequel / sequel trilogies
+}
+
 
 def fetch_movie_detail(session: requests.Session, tmdb_key: str, tmdb_id: int) -> dict | None:
     return tmdb_get(session, f"/movie/{tmdb_id}", tmdb_key)
@@ -72,6 +90,44 @@ def sorted_parts(collection: dict) -> list[dict]:
     dated one and invent a prerequisite that doesn't exist yet."""
     parts = [p for p in (collection.get("parts") or []) if p.get("id")]
     return sorted(parts, key=lambda p: p.get("release_date") or "9999-99-99")
+
+
+def split_into_arcs(parts: list[dict], collection_id: int) -> list[list[dict]]:
+    """Splits release-date-sorted parts into independent narrative arcs so the
+    caller never chains a "must-before" edge across an arc boundary.
+
+    Falls back to treating the whole collection as one arc when it isn't in
+    MULTI_ARC_COLLECTIONS, or when the configured arc sizes no longer match
+    the collection's actual part count (e.g. TMDB adds a new entry) — logging
+    rather than silently mis-chaining, since a stale exception-list entry is
+    exactly the kind of drift that should be visible in the sync output.
+    """
+    sizes = MULTI_ARC_COLLECTIONS.get(collection_id)
+    if sizes is None:
+        return [parts]
+    if sum(sizes) != len(parts):
+        print(
+            f"    [collection {collection_id}] expected {sum(sizes)} parts for "
+            f"known arcs {sizes}, found {len(parts)} — treating as one arc "
+            "(update MULTI_ARC_COLLECTIONS)"
+        )
+        return [parts]
+
+    arcs = []
+    start = 0
+    for size in sizes:
+        arcs.append(parts[start : start + size])
+        start += size
+    return arcs
+
+
+def consecutive_pairs(parts: list[dict], collection_id: int) -> list[tuple[dict, dict]]:
+    """Release-order (earlier, later) pairs to chain with a must-before edge,
+    one per adjacent pair within each arc — never across an arc boundary."""
+    pairs = []
+    for arc in split_into_arcs(parts, collection_id):
+        pairs.extend(zip(arc, arc[1:]))
+    return pairs
 
 
 def part_to_candidate(part: dict) -> Candidate:
@@ -151,7 +207,7 @@ def main() -> int:
                     continue
                 print(f"  {collection_name}: {len(parts)} parts")
 
-                for earlier, later in zip(parts, parts[1:]):
+                for earlier, later in consecutive_pairs(parts, collection_id):
                     candidate = prepare_edge("movie", later["id"], part_to_candidate(earlier), "before", None)
                     if candidate is None:
                         dropped += 1
