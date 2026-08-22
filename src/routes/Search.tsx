@@ -47,7 +47,12 @@ export default function Search() {
   // issuing a second, differently-scoped request.
   const scoped = mediaType === 'all' ? results : results.filter((m) => m.mediaType === mediaType);
 
-  const language = params.get('language');
+  // Comma-joined in the URL so a deep link can carry more than one language
+  // (e.g. ?language=hi,ta) the same way the Calendar language filter does.
+  const languages = useMemo(() => {
+    const raw = params.get('language');
+    return raw ? raw.split(',').filter(Boolean) : [];
+  }, [params]);
   // Options come from the media-scoped results (not yet language-filtered) so
   // picking a language never makes other options disappear from the menu.
   const languageOptions = useMemo(() => {
@@ -62,15 +67,18 @@ export default function Search() {
 
   // Matched by display name, not raw code, so a data quirk like 'cn'/'zh' both
   // meaning Chinese doesn't split into two silently-different filter options.
-  const visible = language
-    ? scoped.filter((m) => m.originalLanguage && languageName(m.originalLanguage) === languageName(language))
-    : scoped;
+  const selectedLanguageNames = useMemo(() => new Set(languages.map(languageName)), [languages]);
+  const visible =
+    selectedLanguageNames.size > 0
+      ? scoped.filter((m) => m.originalLanguage && selectedLanguageNames.has(languageName(m.originalLanguage)))
+      : scoped;
+  const selectedLanguageLabel = [...selectedLanguageNames].join(', ');
 
-  function updateParam(key: string, value: string | null) {
-    const next = new URLSearchParams(params);
-    if (!value) next.delete(key);
-    else next.set(key, value);
-    setParams(next, { replace: true });
+  function updateLanguages(next: string[]) {
+    const updated = new URLSearchParams(params);
+    if (next.length === 0) updated.delete('language');
+    else updated.set('language', next.join(','));
+    setParams(updated, { replace: true });
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -116,11 +124,12 @@ export default function Search() {
 
       {languageOptions.length > 0 && (
         <FilterSelect
+          multiple
           label="Language"
           allLabel="All languages"
           icon={<Globe size={13} />}
-          value={language}
-          onChange={(next) => updateParam('language', next)}
+          value={languages}
+          onChange={updateLanguages}
           options={languageOptions}
           getLabel={languageName}
         />
@@ -130,7 +139,7 @@ export default function Search() {
         <p className="text-xs text-muted-foreground">
           {visible.length} {visible.length === 1 ? 'result' : 'results'}
           {mediaType !== 'all' && ` in ${mediaType === 'movie' ? 'movies' : 'shows'}`}
-          {language && ` · ${languageName(language)}`}
+          {selectedLanguageLabel && ` · ${selectedLanguageLabel}`}
         </p>
       )}
 
@@ -143,8 +152,8 @@ export default function Search() {
 
       {scoped.length > 0 && visible.length === 0 && (
         <p className="py-12 text-center text-sm text-muted-foreground">
-          {scoped.length} {scoped.length === 1 ? 'result' : 'results'}, but none in {languageName(language)} —{' '}
-          <button type="button" onClick={() => updateParam('language', null)} className="text-accent hover:underline">
+          {scoped.length} {scoped.length === 1 ? 'result' : 'results'}, but none in {selectedLanguageLabel} —{' '}
+          <button type="button" onClick={() => updateLanguages([])} className="text-accent hover:underline">
             clear the language filter
           </button>
           .

@@ -8,8 +8,9 @@ export type SectionFilter = "all" | SectionKey;
 interface FiltersBarProps {
   section: SectionFilter;
   onSectionChange: (section: SectionFilter) => void;
-  platform: string;
-  onPlatformChange: (platform: string) => void;
+  /** Empty means "all platforms". */
+  platform: string[];
+  onPlatformChange: (platform: string[]) => void;
   platforms: string[];
   /** Rendered at the end of the row — the window switch on Home. */
   leading?: React.ReactNode;
@@ -46,11 +47,12 @@ export function FiltersBar({
 
       {platforms.length > 0 && (
         <FilterSelect
+          multiple
           label="Platform"
           allLabel="All platforms"
           icon={<MonitorPlay size={13} />}
-          value={platform === "all" ? null : platform}
-          onChange={(next) => onPlatformChange(next ?? "all")}
+          value={platform}
+          onChange={onPlatformChange}
           options={platforms}
         />
       )}

@@ -72,3 +72,88 @@ describe("FilterSelect getLabel", () => {
     expect(screen.getByRole("button", { name: /netflix/i })).toBeInTheDocument();
   });
 });
+
+describe("FilterSelect multiple", () => {
+  const codeToName: Record<string, string> = { hi: "Hindi", ta: "Tamil", en: "English" };
+  const getLabel = (code: string) => codeToName[code] ?? code;
+
+  it("picking an option toggles it into the array and keeps the menu open for another pick", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <FilterSelect
+        multiple
+        label="Language"
+        allLabel="All languages"
+        value={[]}
+        onChange={onChange}
+        options={["hi", "ta", "en"]}
+        getLabel={getLabel}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /language/i }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByText("Tamil"));
+
+    expect(onChange).toHaveBeenCalledWith(["ta"]);
+    // Unlike single-select, choosing an option must not close the popover.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("picking an already-selected option removes it", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <FilterSelect
+        multiple
+        label="Language"
+        allLabel="All languages"
+        value={["hi", "ta"]}
+        onChange={onChange}
+        options={["hi", "ta", "en"]}
+        getLabel={getLabel}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /hindi/i }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByText("Tamil"));
+
+    expect(onChange).toHaveBeenCalledWith(["hi"]);
+  });
+
+  it("shows the first label plus a count once more than one is selected", () => {
+    render(
+      <FilterSelect
+        multiple
+        label="Language"
+        allLabel="All languages"
+        value={["hi", "ta"]}
+        onChange={() => {}}
+        options={["hi", "ta", "en"]}
+        getLabel={getLabel}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /hindi \+1/i })).toBeInTheDocument();
+  });
+
+  it("the clear button resets the whole selection to an empty array, not null", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <FilterSelect
+        multiple
+        label="Language"
+        allLabel="All languages"
+        value={["hi", "ta"]}
+        onChange={onChange}
+        options={["hi", "ta", "en"]}
+        getLabel={getLabel}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /clear language filter/i }));
+    expect(onChange).toHaveBeenCalledWith([]);
+  });
+});

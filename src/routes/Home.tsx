@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { fetchDigest } from '@/lib/api';
@@ -25,7 +26,12 @@ export default function Home() {
 
   const windowKey: WindowKey = params.get('window') === 'coming_up' ? 'coming_up' : 'out_now';
   const section = (params.get('section') as SectionFilter) || 'all';
-  const platform = params.get('platform') || 'all';
+  // Comma-joined in the URL so a deep link can carry more than one platform
+  // (e.g. ?platform=Netflix,Hulu) the same way the Calendar language filter does.
+  const selectedPlatforms = useMemo(() => {
+    const raw = params.get('platform');
+    return raw ? raw.split(',').filter(Boolean) : [];
+  }, [params]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['digest', 'current'],
@@ -40,13 +46,20 @@ export default function Home() {
     setParams(next, { replace: true });
   }
 
+  function updatePlatforms(next: string[]) {
+    const updated = new URLSearchParams(params);
+    if (next.length === 0) updated.delete('platform');
+    else updated.set('platform', next.join(','));
+    setParams(updated, { replace: true });
+  }
+
   const win = data?.[windowKey];
   // One batch ratings request for the whole window, not one per provider
   // group — see useRatings' own comment. Every section/provider grid below
   // shares this single lookup instead of each fetching its own subset.
   const allWindowItems = win ? Object.values(win.sections).flat().map(fromDigestDTO) : [];
   const ratingFor = useRatings(allWindowItems);
-  const filters = { mediaType, platform };
+  const filters = { mediaType, platform: selectedPlatforms };
   const platforms = data
     ? allProviders([
         ...Object.values(data.out_now.sections).flat().map(fromDigestDTO),
@@ -68,8 +81,8 @@ export default function Home() {
         <FiltersBar
           section={section}
           onSectionChange={(s) => updateParam('section', s)}
-          platform={platform}
-          onPlatformChange={(p) => updateParam('platform', p)}
+          platform={selectedPlatforms}
+          onPlatformChange={updatePlatforms}
           platforms={platforms}
           leading={
             <Segmented

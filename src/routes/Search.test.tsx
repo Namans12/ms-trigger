@@ -97,4 +97,23 @@ describe('Search language filter', () => {
     await user.click(await screen.findByRole('button', { name: /clear the language filter/i }));
     expect(await screen.findByText('Brahmakamala')).toBeInTheDocument();
   });
+
+  it('picking a second language adds to the filter instead of replacing it, and records both in the URL', async () => {
+    vi.mocked(searchMovies).mockResolvedValue(results);
+    const user = userEvent.setup();
+    renderSearch();
+
+    await screen.findByText('Judaa');
+    await user.click(screen.getByRole('button', { name: /language/i }));
+    const dialog = await screen.findByRole('dialog');
+
+    await user.click(within(dialog).getByText('Punjabi'));
+    // Multi-select: the menu stays open so a second pick doesn't need reopening.
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await user.click(within(dialog).getByText('Kannada'));
+
+    expect(screen.getByText('Judaa')).toBeInTheDocument();
+    expect(screen.getByText('Brahmakamala')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Bharat Desh Hai Mera')).not.toBeInTheDocument());
+  });
 });

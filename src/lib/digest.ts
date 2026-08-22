@@ -12,12 +12,12 @@ export const SECTION_LABELS: Record<SectionKey, string> = {
 
 export interface DigestFilters {
   mediaType: "all" | "movie" | "tv";
-  platform: string; // "all" or an exact provider name
+  platform: string[]; // empty means "all"; otherwise an item matches any listed provider
 }
 
 export function matchesFilters(item: ReleaseItem, filters: DigestFilters): boolean {
   if (filters.mediaType !== "all" && item.mediaType !== filters.mediaType) return false;
-  if (filters.platform !== "all" && !(item.providers || []).includes(filters.platform)) return false;
+  if (filters.platform.length > 0 && !filters.platform.some((p) => (item.providers || []).includes(p))) return false;
   return true;
 }
 

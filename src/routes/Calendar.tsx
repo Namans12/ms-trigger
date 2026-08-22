@@ -155,7 +155,19 @@ export default function Calendar() {
   const [mediaType] = useMediaScope();
   const month = params.get('month') || currentMonth();
   const kind = (params.get('kind') as KindFilter) || 'all';
-  const language = params.get('language');
+  // Comma-joined in the URL so a deep link can carry more than one language
+  // (e.g. ?language=hi,ta) the same way `kind` and `month` are single values.
+  const languages = useMemo(() => {
+    const raw = params.get('language');
+    return raw ? raw.split(',').filter(Boolean) : [];
+  }, [params]);
+
+  function updateLanguages(next: string[]) {
+    const updated = new URLSearchParams(params);
+    if (next.length === 0) updated.delete('language');
+    else updated.set('language', next.join(','));
+    setParams(updated, { replace: true });
+  }
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['calendar', month],
@@ -194,9 +206,11 @@ export default function Calendar() {
 
   // Matched by display name (see above), so selecting either "cn" or "zh"
   // catches every row that means Chinese, not just the one exact code chosen.
-  const entries = language
-    ? scopedEntries.filter((e) => e.language && languageName(e.language) === languageName(language))
-    : scopedEntries;
+  const selectedLanguageNames = useMemo(() => new Set(languages.map(languageName)), [languages]);
+  const entries =
+    selectedLanguageNames.size > 0
+      ? scopedEntries.filter((e) => e.language && selectedLanguageNames.has(languageName(e.language)))
+      : scopedEntries;
   const counts: Record<CalendarKind, number> = { theatrical: 0, streaming: 0, tv_network: 0 };
   for (const entry of entries) counts[entry.kind] = (counts[entry.kind] ?? 0) + 1;
 
@@ -245,11 +259,12 @@ export default function Calendar() {
 
           {languageOptions.length > 0 && (
             <FilterSelect
+              multiple
               label="Language"
               allLabel="All languages"
               icon={<Globe size={13} />}
-              value={language}
-              onChange={(next) => updateParam('language', next ?? 'all')}
+              value={languages}
+              onChange={updateLanguages}
               options={languageOptions}
               getLabel={languageName}
             />
