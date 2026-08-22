@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import type { ReleaseItem } from "@/types/digest";
 import { Eye, Clock, Plus, Star, ImageOff, X } from "lucide-react";
 import { ActionButton } from "@/components/watchlist/ActionButton";
+import { tmdbPoster } from "@/lib/tmdbImage";
 
 interface ReleaseCardProps {
   item: ReleaseItem;
@@ -31,6 +32,10 @@ export function ReleaseCard({
 }: ReleaseCardProps) {
   const year = item.releaseDate?.slice(0, 4);
   const providerLabel = (providers ?? item.providers ?? []).slice(0, 3).join(", ");
+  // Box is 48px, 56px from sm: up. 1x/2x is handled inside tmdbPoster (via
+  // srcSet), so passing the smaller width here is deliberate — it's the base
+  // the 2x bucket doubles from, not a cap.
+  const poster = tmdbPoster(item.posterUrl, 48);
 
   const body = (
     <>
@@ -42,8 +47,15 @@ export function ReleaseCard({
       )}
       {/* Poster */}
       <div className="w-[48px] h-[72px] sm:w-[56px] sm:h-[84px] rounded-lg overflow-hidden bg-secondary shrink-0">
-        {item.posterUrl ? (
-          <img src={item.posterUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+        {poster ? (
+          <img
+            src={poster.src}
+            srcSet={poster.srcSet}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="w-full h-full object-cover"
+          />
         ) : (
           <div className="no-poster-stripes w-full h-full rounded-lg border border-dashed border-muted-foreground/40 flex items-center justify-center text-muted-foreground">
             <ImageOff size={18} className="shrink-0" />

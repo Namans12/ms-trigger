@@ -8,6 +8,7 @@ import { FilterSelect } from '@/components/ui/filter-select';
 import { useMediaScope } from '@/hooks/useMediaScope';
 import { useSeasons, type SeasonsLookup } from '@/hooks/useSeasons';
 import { languageName, compareByLanguageName } from '@/lib/languages';
+import { tmdbPoster } from '@/lib/tmdbImage';
 import type { CalendarEntryDTO, CalendarKind } from '../../shared/types/calendar';
 import {
   ChevronLeft,
@@ -78,15 +79,18 @@ const TABS: { id: KindFilter; label: string }[] = [
 ];
 
 function EntryRow({ entry, seasons }: { entry: CalendarEntryDTO; seasons: number | null }) {
+  const poster = tmdbPoster(entry.posterUrl, 36); // box is w-9 = 36px
   const body = (
     <div className="flex items-center gap-3 p-3 bg-card rounded-xl border border-border hover:border-accent/30 hover:bg-card-hover transition-all duration-200">
       {/* Poster once the TMDB backfill has resolved the row; the icon tile is
           the fallback for rows that never matched confidently. */}
-      {entry.posterUrl ? (
+      {poster ? (
         <img
-          src={entry.posterUrl}
+          src={poster.src}
+          srcSet={poster.srcSet}
           alt=""
           loading="lazy"
+          decoding="async"
           className="w-9 h-[54px] rounded-lg object-cover bg-secondary shrink-0"
         />
       ) : (

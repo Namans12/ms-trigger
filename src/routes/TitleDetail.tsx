@@ -12,6 +12,7 @@ import { getYouMayAlsoLike, type MediaType } from '@/lib/tmdb';
 import { RatingBadges } from '@/components/release/RatingBadges';
 import { useRating } from '@/hooks/useRatings';
 import { hasAnyScore } from '@/lib/ratings';
+import { tmdbBackdrop, tmdbPoster } from '@/lib/tmdbImage';
 import {
   ArrowLeft,
   Star,
@@ -97,12 +98,22 @@ export default function TitleDetail() {
 
   const year = data.releaseDate?.slice(0, 4);
   const movie = titleDetailToMovie(data);
+  // Full-bleed but content-column width, not viewport width — 700 lands the
+  // 1x bucket on w780 rather than the previous flat w1280.
+  const backdrop = tmdbBackdrop(data.backdropUrl, 700);
+  const poster = tmdbPoster(data.posterUrl, 112); // sm:w-28 = 112px
 
   return (
     <div className="space-y-5 -mt-6">
       <div className="relative -mx-4 sm:-mx-6 rounded-b-2xl overflow-hidden">
-        {data.backdropUrl ? (
-          <img src={data.backdropUrl} alt="" className="w-full h-52 sm:h-72 object-cover" />
+        {backdrop ? (
+          <img
+            src={backdrop.src}
+            srcSet={backdrop.srcSet}
+            alt=""
+            decoding="async"
+            className="w-full h-52 sm:h-72 object-cover"
+          />
         ) : (
           <div className="w-full h-40 bg-secondary" />
         )}
@@ -119,7 +130,15 @@ export default function TitleDetail() {
 
       <div className="px-1 -mt-16 sm:-mt-20 relative flex gap-4 items-end">
         <div className="w-24 h-36 sm:w-28 sm:h-40 rounded-xl overflow-hidden bg-secondary border-2 border-background shrink-0 shadow-lg">
-          {data.posterUrl && <img src={data.posterUrl} alt="" className="w-full h-full object-cover" />}
+          {poster && (
+            <img
+              src={poster.src}
+              srcSet={poster.srcSet}
+              alt=""
+              decoding="async"
+              className="w-full h-full object-cover"
+            />
+          )}
         </div>
         <div className="min-w-0 pb-1">
           <h1 className="font-display text-xl sm:text-2xl font-bold text-foreground leading-tight">{data.title}</h1>

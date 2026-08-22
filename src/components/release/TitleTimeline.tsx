@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Film, Tv, MapPin, ThumbsDown, Popcorn } from 'lucide-react';
 import { formatReleaseDate } from '@/lib/relations';
 import { useScrollProgress } from '@/hooks/useScrollProgress';
+import { tmdbPoster } from '@/lib/tmdbImage';
 
 // Fixed row geometry. Because every row is exactly ROW_HEIGHT tall, a node's
 // position along the rail is arithmetic — index / (count - 1) — rather than a
@@ -72,6 +73,7 @@ export function TitleTimeline({ entries, onSuppress }: TitleTimelineProps) {
         // Single-entry chains have no rail to travel, so the one node is lit.
         const reached = lastIndex === 0 || progress >= index / lastIndex;
         const isCan = entry.kind === 'can';
+        const poster = tmdbPoster(entry.posterUrl, 48); // box is w-12 = 48px
         const card = (
           <div
             className={`flex h-full items-center gap-3 rounded-xl border px-2.5 transition-colors duration-300 ${
@@ -83,8 +85,15 @@ export function TitleTimeline({ entries, onSuppress }: TitleTimelineProps) {
             }`}
           >
             <div className="h-[72px] w-12 shrink-0 overflow-hidden rounded-lg bg-secondary">
-              {entry.posterUrl ? (
-                <img src={entry.posterUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+              {poster ? (
+                <img
+                  src={poster.src}
+                  srcSet={poster.srcSet}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <div className="no-poster-stripes flex h-full w-full items-center justify-center rounded-lg border border-dashed border-muted-foreground/40 text-muted-foreground">
                   {entry.mediaType === 'tv' ? <Tv size={16} /> : <Film size={16} />}

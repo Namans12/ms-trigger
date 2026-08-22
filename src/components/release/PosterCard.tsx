@@ -4,6 +4,7 @@ import { ActionButton } from '@/components/watchlist/ActionButton';
 import { RatingBadges } from '@/components/release/RatingBadges';
 import { hasAnyScore, type TitleRating } from '@/lib/ratings';
 import { ImageOff, Star, Plus, Clock, ThumbsDown } from 'lucide-react';
+import { tmdbPosterFluid } from '@/lib/tmdbImage';
 
 interface PosterCardProps {
   item: ReleaseItem;
@@ -44,15 +45,22 @@ export function PosterCard({
   const year = item.releaseDate?.slice(0, 4);
   const hasActions = onAddToWatchlist || onAddToWatchLater;
   const provider = (providers ?? item.providers)?.[0];
+  // This card renders both fixed-width (PosterRow, 130-150px) and fluid-grid
+  // (ReleaseGrid, 3-7 responsive columns) — sizes covers both rather than
+  // picking one true width.
+  const posterImg = tmdbPosterFluid(item.posterUrl);
 
   const poster = (
     <div className={`group relative ${className}`}>
       <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-secondary">
-        {item.posterUrl ? (
+        {posterImg ? (
           <img
-            src={item.posterUrl}
+            src={posterImg.src}
+            srcSet={posterImg.srcSet}
+            sizes="(min-width: 1280px) 180px, (min-width: 640px) 150px, 130px"
             alt=""
             loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (

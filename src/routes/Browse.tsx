@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { getTrending, getPopularMovies, getPopularTV, IMG_BACKDROP } from '@/lib/tmdb';
+import { getTrending, getPopularMovies, getPopularTV } from '@/lib/tmdb';
+import { tmdbBackdrop } from '@/lib/tmdbImage';
 import { ActionButton } from '@/components/watchlist/ActionButton';
 import { PosterCard } from '@/components/release/PosterCard';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
@@ -60,6 +61,12 @@ export default function Browse() {
   const popularMovies = mediaType === 'tv' ? [] : (popularMoviesQuery.data ?? []);
   const popularTV = mediaType === 'movie' ? [] : (popularTVQuery.data ?? []);
   const heroMovie = trending.find((m) => m.backdropPath) || trending[0];
+  // Full width of the content column (sidebar-adjacent, not the viewport) —
+  // 700 lands the 1x bucket on w780 rather than the flat w1280 this used to
+  // request regardless of size.
+  const heroBackdrop = heroMovie?.backdropPath
+    ? tmdbBackdrop(`https://image.tmdb.org/t/p/w1280${heroMovie.backdropPath}`, 700)
+    : undefined;
   const seasonsFor = useSeasons([...trending, ...popularMovies, ...popularTV]);
   const providersFor = useProviders([...trending, ...popularMovies, ...popularTV]);
 
@@ -129,9 +136,15 @@ export default function Browse() {
         </button>
       </div>
 
-      {heroMovie && heroMovie.backdropPath && (
+      {heroMovie && heroBackdrop && (
         <div className="relative rounded-2xl overflow-hidden -mx-1">
-          <img src={`${IMG_BACKDROP}${heroMovie.backdropPath}`} alt={heroMovie.title} className="w-full h-48 sm:h-64 lg:h-80 object-cover" />
+          <img
+            src={heroBackdrop.src}
+            srcSet={heroBackdrop.srcSet}
+            alt={heroMovie.title}
+            decoding="async"
+            className="w-full h-48 sm:h-64 lg:h-80 object-cover"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 p-5 lg:p-8">
             <div className="flex items-center gap-2 mb-2">
