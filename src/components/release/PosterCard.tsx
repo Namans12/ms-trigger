@@ -106,7 +106,7 @@ export function PosterCard({
       <h4 className="mt-2 min-h-[2.25rem] text-xs font-medium text-foreground line-clamp-2 leading-tight">
         {item.title}
       </h4>
-      <div className="flex items-center gap-1.5 mt-0.5 leading-none flex-wrap">
+      <div className="flex items-center gap-1.5 mt-0.5 leading-none">
         {year && <span className="text-[10px] text-muted-foreground">{year}</span>}
         <span className="text-[9px] uppercase font-semibold text-muted-foreground">
           {item.mediaType === 'tv' ? 'TV' : 'Film'}
@@ -116,8 +116,11 @@ export function PosterCard({
             {seasons} {seasons === 1 ? 'Season' : 'Seasons'}
           </span>
         )}
-        {provider && <span className="text-[10px] text-accent font-medium truncate">{provider}</span>}
       </div>
+      {/* Its own line, always — folded into the row above it used to wrap in
+          only when the combined text happened to overflow, so one card in a
+          row would grow a second line while its neighbours didn't. */}
+      {provider && <p className="mt-0.5 text-[10px] text-accent font-medium truncate">{provider}</p>}
 
       {reason && <p className="mt-1 text-[10px] text-muted-foreground leading-snug line-clamp-2">{reason}</p>}
 

@@ -7,6 +7,7 @@ import {
   seasonsCacheKey,
   toSeasonsDTO,
   upsertSeasons,
+  type CachedSeasons,
   type SeasonKey,
   type TitleSeasonsDTO,
 } from "../lib/titleSeasonsDb.js";
@@ -15,9 +16,18 @@ import {
 // as api/ratings.ts (Vercel Hobby caps a deployment at 12 serverless
 // functions):
 //
-//   GET /api/seasons?ids=tv:1668,tv:76331   cache-only batch — NEVER calls TMDB
+//   GET /api/seasons?ids=tv:1668,tv:76331   batch — cache first, then live TMDB
+//                                           top-up (capped) for genuine misses
 //   GET /api/seasons?type=tv&id=1668        single title — may call TMDB once,
 //                                           and only on a genuine cache miss
+//
+// The batch path used to be cache-only, matching api/ratings.ts. Unlike
+// ratings, though, TMDB has no scarce daily quota to protect, and grids built
+// from a live TMDB list (Browse's Trending/Popular) draw from whatever's
+// trending that week — titles the backfill cron (scripts/backfill_seasons.py)
+// has never necessarily seen and never will on its own. So the batch path
+// also live-fetches misses now, capped per request (see MAX_LIVE_FALLBACK)
+// and written through to the cache so the next request is a hit.
 //
 // Movies never have seasons, so every key here is 'tv' — kept as an explicit
 // mediaType field (rather than a bare id) so the wire shape matches
@@ -62,7 +72,16 @@ function parseBatchKeys(raw: string): SeasonKey[] {
   return keys;
 }
 
-async function handleBatch(res: ServerResponse, raw: string) {
+// A grid built from a live TMDB list (Browse's Trending/Popular) draws from
+// whatever TMDB is showing this week, not from any fixed working set the
+// backfill cron scans — so it will always contain titles the cron has never
+// seen. Capped, best-effort live top-up keeps those from being permanently
+// blank instead of only ever getting a season count if a cron run happens to
+// cover them; a cache-only batch (the ratings equivalent) would leave the
+// same shows empty forever.
+const MAX_LIVE_FALLBACK = 30;
+
+async function handleBatch(req: IncomingMessage, res: ServerResponse, raw: string) {
   const keys = parseBatchKeys(raw);
   // Every requested key is echoed back, so the client can tell "asked and got
   // nothing" from "never asked" without diffing its own request.
@@ -70,13 +89,37 @@ async function handleBatch(res: ServerResponse, raw: string) {
   for (const key of keys) payload[seasonsCacheKey(key)] = null;
   if (keys.length === 0) return sendJson(res, 200, payload, CACHE_CONTROL);
 
+  const sql = getDb();
+  let cached: Map<string, CachedSeasons>;
   try {
-    const cached = await getCachedSeasons(getDb(), keys);
+    cached = await getCachedSeasons(sql, keys);
     for (const [cacheKey, row] of cached) payload[cacheKey] = toSeasonsDTO(row);
   } catch (err) {
     console.error("[seasons] batch cache read failed", err);
     return sendJson(res, 200, payload, "no-store");
   }
+
+  const misses = keys.filter((key) => !cached.has(seasonsCacheKey(key)));
+  // Same rate-limit rule as the single-title path: degrade to "no seasons"
+  // rather than spend a burst of TMDB calls, and don't cache the artifact.
+  if (misses.length === 0 || !tmdbConfigured() || isRateLimited(req)) {
+    return sendJson(res, 200, payload, misses.length > 0 && isRateLimited(req) ? "no-store" : CACHE_CONTROL);
+  }
+
+  const toFetch = misses.slice(0, MAX_LIVE_FALLBACK);
+  const results = await Promise.allSettled(
+    toFetch.map(async (key) => {
+      const result = await fetchNumberOfSeasons(key.tmdbId);
+      if (!result) return null; // "learned nothing" — not cacheable, per fetchNumberOfSeasons' contract
+      return upsertSeasons(sql, key, result.numberOfSeasons, result.notFound);
+    }),
+  );
+  results.forEach((outcome, i) => {
+    if (outcome.status === "fulfilled" && outcome.value) {
+      payload[seasonsCacheKey(toFetch[i])] = toSeasonsDTO(outcome.value);
+    }
+  });
+
   return sendJson(res, 200, payload, CACHE_CONTROL);
 }
 
@@ -119,7 +162,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   const url = new URL(req.url ?? "/", "http://localhost");
   const ids = url.searchParams.get("ids");
-  if (ids !== null) return handleBatch(res, ids);
+  if (ids !== null) return handleBatch(req, res, ids);
 
   const mediaType = url.searchParams.get("type");
   const tmdbId = Number(url.searchParams.get("id"));

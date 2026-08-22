@@ -18,8 +18,9 @@ export async function fetchSeasons(tmdbId: number): Promise<TitleSeasons | null>
   return res.json();
 }
 
-/** Cache-only batch read for grids — never triggers a live TMDB call, so a
- * page of 40 posters costs one query and zero API budget. */
+/** Batch read for grids — one request no matter how many ids, regardless of
+ * whether the server answers from cache or has to top up a miss live (see
+ * api/seasons.ts's handleBatch). */
 export async function fetchSeasonsBatch(tmdbIds: number[]): Promise<Record<string, TitleSeasons | null>> {
   if (tmdbIds.length === 0) return {};
   const ids = tmdbIds.slice(0, 100).map((id) => seasonsKey(id)).join(',');
