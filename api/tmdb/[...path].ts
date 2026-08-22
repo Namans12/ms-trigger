@@ -9,8 +9,29 @@ import {
   tmdbSimilar,
   tmdbCredits,
   tmdbDiscover,
+  tmdbWatchProvidersBatch,
+  type ProviderKey,
 } from "../../lib/tmdbProxy.js";
 import { isRateLimited } from "../../lib/rateLimit.js";
+
+// "movie:603,tv:1399" -> keys, same format api/ratings.ts's batch route uses.
+// Malformed entries are dropped rather than rejected: one bad id in a grid
+// request shouldn't blank the whole page.
+function parseProviderKeys(raw: string): ProviderKey[] {
+  const keys: ProviderKey[] = [];
+  const seen = new Set<string>();
+  for (const part of raw.split(",")) {
+    const [mediaType, idRaw] = part.trim().split(":");
+    if (mediaType !== "movie" && mediaType !== "tv") continue;
+    const id = Number(idRaw);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    const cacheKey = `${mediaType}:${id}`;
+    if (seen.has(cacheKey)) continue;
+    seen.add(cacheKey);
+    keys.push({ mediaType, id });
+  }
+  return keys;
+}
 
 // Single catch-all for every /api/tmdb/* route (Vercel Hobby caps a deployment
 // at 12 serverless functions, so search/trending/popular-movies/popular-tv/
@@ -62,6 +83,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         else if (route === "recommendations") body = await tmdbRecommendations(type, id);
         else if (route === "similar") body = await tmdbSimilar(type, id);
         else body = await tmdbCredits(type, id);
+        cacheControl = "public, s-maxage=3600, stale-while-revalidate=86400";
+        break;
+      }
+      case "providers-batch": {
+        const keys = parseProviderKeys(url.searchParams.get("ids") ?? "");
+        body = keys.length > 0 ? await tmdbWatchProvidersBatch(keys) : {};
         cacheControl = "public, s-maxage=3600, stale-while-revalidate=86400";
         break;
       }

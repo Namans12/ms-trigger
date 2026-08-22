@@ -4,6 +4,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { WatchlistItem } from '@/types/movie';
 import { SortableMovieCard } from './SortableMovieCard';
 import { useSeasons } from '@/hooks/useSeasons';
+import { useProviders } from '@/hooks/useProviders';
 import { ListX } from 'lucide-react';
 
 interface WatchlistViewProps {
@@ -18,6 +19,7 @@ interface WatchlistViewProps {
 
 export function WatchlistView({ items, onReorder, onMarkWatched, onRemove, onAddToWatchLater, onAddToList, emptyMessage = 'Nothing here yet' }: WatchlistViewProps) {
   const seasonsFor = useSeasons(items);
+  const providersFor = useProviders(items);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
@@ -50,6 +52,7 @@ export function WatchlistView({ items, onReorder, onMarkWatched, onRemove, onAdd
               item={item}
               index={idx}
               seasons={seasonsFor(item.mediaType, item.id)}
+              providers={providersFor(item.mediaType, item.id)}
               onMarkWatched={() => onMarkWatched(item.dbId)}
               onRemove={() => onRemove(item.dbId)}
               onAddToWatchLater={onAddToWatchLater ? () => onAddToWatchLater(item.dbId) : undefined}

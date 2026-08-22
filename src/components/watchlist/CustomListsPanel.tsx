@@ -3,6 +3,7 @@ import { CustomList, WatchlistItem } from '@/types/movie';
 import { ReleaseCard } from '@/components/release/ReleaseCard';
 import { fromMovie } from '@/types/digest';
 import { useSeasons } from '@/hooks/useSeasons';
+import { useProviders } from '@/hooks/useProviders';
 import { Plus, Trash2, ChevronDown, FolderOpen, Sparkles } from 'lucide-react';
 
 interface CustomListsPanelProps {
@@ -19,6 +20,7 @@ export function CustomListsPanel({ lists, listItems, onCreate, onDelete, onRemov
   // One batch across every list's items, not one per list — see useRatings'
   // own comment for why this matters once there's more than a couple of lists.
   const seasonsFor = useSeasons(Object.values(listItems).flat());
+  const providersFor = useProviders(Object.values(listItems).flat());
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +79,7 @@ export function CustomListsPanel({ lists, listItems, onCreate, onDelete, onRemov
                         item={fromMovie(item)}
                         compact
                         seasons={seasonsFor(item.mediaType, item.id)}
+                        providers={providersFor(item.mediaType, item.id)}
                         onRemove={() => onRemoveItem(list.id, item.dbId)}
                       />
                     ))

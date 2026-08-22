@@ -1,24 +1,102 @@
-import { normalizePlatforms } from "../shared/platforms.js";
+import { normalizePlatforms, STREAMING_NETWORKS } from "../shared/platforms.js";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 
 // TMDB splits availability across buckets. "flatrate" (included with a
 // subscription), "ads" (free with adverts) and "free" all mean "you can watch
-// it on this service right now", so all three count as a platform. "rent" and
-// "buy" are deliberately excluded — paying per title is not the same as the
-// title having landed on a service, and treating them as one another is what
-// makes a radar untrustworthy.
+// it on this service right now", so all three count as a platform.
 const AVAILABILITY_BUCKETS = ["flatrate", "ads", "free"] as const;
+// These mean "you can watch it, but you pay per title".
+const PURCHASE_BUCKETS = ["rent", "buy"] as const;
 
-export function providersFromWatchPayload(watchProviders: any, region: string): string[] {
-  const regionPayload = watchProviders?.results?.[region] ?? {};
+const BUY_RENT_SUFFIX = " (Buy/Rent)";
+// Used when a title is known to be purchase-only but no usable store name
+// survived normalization — better than showing nothing, which implies we know
+// nothing at all.
+const GENERIC_BUY_RENT = "Buy/Rent";
+// A title can be purchasable in 30+ territories; listing every store is noise.
+const MAX_PROVIDERS = 3;
+
+/** One entry per listing, empty string included. A nameless purchase-bucket
+ * entry is kept deliberately: "there is a listing here but we cannot name the
+ * store" still means the title is buyable. `normalizePlatforms` drops blanks
+ * before anything reaches the UI, so this never yields a phantom platform. */
+function namesInRegion(details: any, region: string, buckets: readonly string[]): string[] {
+  const payload = details?.["watch/providers"]?.results?.[region] ?? {};
   const names: string[] = [];
-  for (const bucket of AVAILABILITY_BUCKETS) {
-    for (const entry of regionPayload[bucket] ?? []) {
-      if (entry?.provider_name) names.push(entry.provider_name);
+  for (const bucket of buckets) {
+    for (const entry of payload[bucket] ?? []) {
+      names.push(entry?.provider_name ?? "");
     }
   }
-  return normalizePlatforms(names);
+  return names;
+}
+
+/** Provider names from every territory, most widely-carried first — a store
+ * listed in 30 countries is a better one-line answer than one listed in a
+ * single small market. */
+function namesAnyRegion(details: any, buckets: readonly string[]): string[] {
+  const results = details?.["watch/providers"]?.results ?? {};
+  const counts = new Map<string, number>();
+  for (const region of Object.keys(results)) {
+    // A store listed in both rent and buy for one region still counts once.
+    for (const name of new Set(namesInRegion(details, region, buckets))) {
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name]) => name);
+}
+
+function flatrateProviders(details: any, region: string): string[] {
+  return normalizePlatforms(namesInRegion(details, region, AVAILABILITY_BUCKETS));
+}
+
+/** Labels purchase-only availability so it can never read as a subscription —
+ * telling someone "Amazon Prime" when the title is really a paid rental there
+ * is a worse error than telling them nothing. */
+function tagBuyRent(names: string[]): string[] {
+  const tagged = normalizePlatforms(names)
+    .slice(0, MAX_PROVIDERS)
+    .map((n) => `${n}${BUY_RENT_SUFFIX}`);
+  if (tagged.length > 0) return tagged;
+  return names.length > 0 ? [GENERIC_BUY_RENT] : [];
+}
+
+function rentBuyProviders(details: any, region: string): string[] {
+  return tagBuyRent(namesInRegion(details, region, PURCHASE_BUCKETS));
+}
+
+/** Best available answer to "where can I watch this?", widest-relevance first.
+ *
+ * The order encodes a preference, not a guess: a subscription in the reader's
+ * own region is the most useful answer, and a store in some other territory is
+ * the least — but all of them beat showing nothing. The cross-region steps
+ * exist because TMDB's India provider data is thin while its US/UK data is
+ * rich: a title can carry rent/buy entries in 30+ territories and none in
+ * India, so a region-only lookup would report nothing for a title that's
+ * plainly available. Mirrors resolve_providers in releasebot.py, the same
+ * fallback chain already proven on the release calendar. */
+export function resolveProviders(details: any, region: string): string[] {
+  const subs = flatrateProviders(details, region);
+  if (subs.length > 0) return subs.slice(0, MAX_PROVIDERS);
+
+  const purchase = rentBuyProviders(details, region);
+  if (purchase.length > 0) return purchase;
+
+  const subsAnywhere = normalizePlatforms(namesAnyRegion(details, AVAILABILITY_BUCKETS));
+  if (subsAnywhere.length > 0) return subsAnywhere.slice(0, MAX_PROVIDERS);
+
+  const purchaseAnywhere = tagBuyRent(namesAnyRegion(details, PURCHASE_BUCKETS));
+  if (purchaseAnywhere.length > 0) return purchaseAnywhere;
+
+  // No availability recorded anywhere. The network that made it is the last
+  // real signal — a brand-new title often has one before it has providers.
+  // Movies carry no `networks` field at all, so this tier is TV-only in practice.
+  const networks = normalizePlatforms((details?.networks ?? []).map((n: any) => n?.name ?? ""));
+  const fromNetwork = networks.filter((n) => STREAMING_NETWORKS.has(n));
+  if (fromNetwork.length > 0) return fromNetwork.slice(0, MAX_PROVIDERS);
+
+  return [];
 }
 
 export interface TmdbMovieResult {
@@ -257,7 +335,7 @@ export async function tmdbDetail(mediaType: "movie" | "tv", id: number, region =
   if (!res.ok) throw new Error(`TMDB detail failed: ${res.status}`);
   const r = await res.json();
 
-  const providers = providersFromWatchPayload(r["watch/providers"], region);
+  const providers = resolveProviders(r, region);
 
   return {
     id: r.id,
@@ -281,4 +359,49 @@ export async function tmdbDetail(mediaType: "movie" | "tv", id: number, region =
         ? r.number_of_seasons
         : null,
   };
+}
+
+export interface ProviderKey {
+  mediaType: "movie" | "tv";
+  id: number;
+}
+
+export function providerCacheKey(key: ProviderKey): string {
+  return `${key.mediaType}:${key.id}`;
+}
+
+// A grid can plausibly ask for more titles than fit in one request budget;
+// this caps a single batch at a limit ratings' own batch endpoint also uses,
+// keeping the fan-out comfortably inside the function's request timeout.
+const MAX_PROVIDER_BATCH_KEYS = 60;
+
+/** Providers for many titles in one call. Every key gets its own TMDB fetch —
+ * there is no bulk watch/providers endpoint — but they run in parallel and the
+ * caller only makes one round trip, which is what keeps a grid of dozens of
+ * posters from firing dozens of requests of its own. One title's failure
+ * (a bad id, a transient TMDB error) resolves to an empty list for that key
+ * only; it never fails the batch. */
+export async function tmdbWatchProvidersBatch(
+  keys: ProviderKey[],
+  region = "IN",
+): Promise<Record<string, string[]>> {
+  const trimmed = keys.slice(0, MAX_PROVIDER_BATCH_KEYS);
+  const key = requireApiKey();
+
+  const results = await Promise.allSettled(
+    trimmed.map(async ({ mediaType, id }) => {
+      const path = mediaType === "movie" ? "movie" : "tv";
+      const url = `${TMDB_BASE_URL}/${path}/${id}?api_key=${key}&append_to_response=watch/providers`;
+      const res = await fetchWithRetry(url);
+      if (!res.ok) throw new Error(`TMDB detail failed: ${res.status}`);
+      return resolveProviders(await res.json(), region);
+    }),
+  );
+
+  const out: Record<string, string[]> = {};
+  trimmed.forEach((k, i) => {
+    const result = results[i];
+    out[providerCacheKey(k)] = result.status === "fulfilled" ? result.value : [];
+  });
+  return out;
 }

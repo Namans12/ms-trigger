@@ -4,6 +4,7 @@ import { fromMovie } from '@/types/digest';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { useRatings } from '@/hooks/useRatings';
 import { useSeasons } from '@/hooks/useSeasons';
+import { useProviders } from '@/hooks/useProviders';
 
 interface PosterRowProps {
   title: string;
@@ -23,6 +24,7 @@ export function PosterRow({ title, items, icon, subtitle, reasonFor, onSuppress 
   const wl = useWatchlistContext();
   const ratingFor = useRatings(items);
   const seasonsFor = useSeasons(items);
+  const providersFor = useProviders(items);
   if (items.length === 0) return null;
 
   return (
@@ -40,6 +42,7 @@ export function PosterRow({ title, items, icon, subtitle, reasonFor, onSuppress 
             linkTo={`/title/${movie.mediaType}/${movie.id}`}
             rating={ratingFor(movie.mediaType, movie.id)}
             seasons={seasonsFor(movie.mediaType, movie.id)}
+            providers={providersFor(movie.mediaType, movie.id)}
             className="flex-shrink-0 w-[130px] sm:w-[150px]"
             onAddToWatchlist={() => wl.addToWatchlist(movie)}
             onAddToWatchLater={() => wl.addToWatchLater(movie)}

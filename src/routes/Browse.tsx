@@ -11,6 +11,7 @@ import { PosterRow } from '@/components/release/PosterRow';
 import { useSuggestions } from '@/hooks/useSuggestions';
 import { useMediaScope } from '@/hooks/useMediaScope';
 import { useSeasons } from '@/hooks/useSeasons';
+import { useProviders } from '@/hooks/useProviders';
 import { cn } from '@/lib/utils';
 import { TrendingUp, Film, Tv, Flame, Loader2, RefreshCw, Check, Plus, Clock, Sparkles } from 'lucide-react';
 
@@ -60,6 +61,7 @@ export default function Browse() {
   const popularTV = mediaType === 'movie' ? [] : (popularTVQuery.data ?? []);
   const heroMovie = trending.find((m) => m.backdropPath) || trending[0];
   const seasonsFor = useSeasons([...trending, ...popularMovies, ...popularTV]);
+  const providersFor = useProviders([...trending, ...popularMovies, ...popularTV]);
 
   const suggestions = (suggestionsQuery.data ?? [])
     .map((row) => ({ ...row, items: inScope(row.items) }))
@@ -189,6 +191,7 @@ export default function Browse() {
                 item={fromMovie(movie)}
                 linkTo={`/title/${movie.mediaType}/${movie.id}`}
                 seasons={seasonsFor(movie.mediaType, movie.id)}
+                providers={providersFor(movie.mediaType, movie.id)}
                 className="flex-shrink-0 w-[130px] sm:w-[150px]"
                 onAddToWatchlist={() => wl.addToWatchlist(movie)}
                 onAddToWatchLater={() => wl.addToWatchLater(movie)}
@@ -211,6 +214,7 @@ export default function Browse() {
                 item={fromMovie(movie)}
                 linkTo={`/title/${movie.mediaType}/${movie.id}`}
                 seasons={seasonsFor(movie.mediaType, movie.id)}
+                providers={providersFor(movie.mediaType, movie.id)}
                 className="flex-shrink-0 w-[130px] sm:w-[150px]"
                 onAddToWatchlist={() => wl.addToWatchlist(movie)}
                 onAddToWatchLater={() => wl.addToWatchLater(movie)}
@@ -239,6 +243,7 @@ export default function Browse() {
                 item={fromMovie(movie)}
                 linkTo={`/title/${movie.mediaType}/${movie.id}`}
                 seasons={seasonsFor(movie.mediaType, movie.id)}
+                providers={providersFor(movie.mediaType, movie.id)}
                 className="flex-shrink-0 w-[130px] sm:w-[150px]"
                 onAddToWatchlist={() => wl.addToWatchlist(movie)}
                 onAddToWatchLater={() => wl.addToWatchLater(movie)}

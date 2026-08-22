@@ -1,6 +1,17 @@
 {
   "_comment": "Single source of truth for streaming-platform naming. Consumed by both releasebot.py (write path, via platform_names.py) and shared/platforms.ts (read path, via api/**). TMDB returns several spellings for the same service, and news_sources.py contributes its own — without this they fragment the platform filter and card grouping into separate entries for the same service.",
 
+  "_streamingNetworksComment": "Allowlist for the networks-fallback tier of provider resolution (lib/tmdbProxy.ts's resolveProviders, mirroring releasebot.py's own STREAMING_NETWORKS): when a title has no watch/providers listing anywhere, a network from this set is still a real 'where to watch' answer, unlike an arbitrary production company. releasebot.py keeps its own copy of this same list rather than reading it from here, since its nightly job already works and touching it isn't part of this change.",
+  "streamingNetworks": [
+    "JioHotstar", "ZEE5", "SonyLIV", "Sun NXT", "aha", "Hoichoi",
+    "Amazon MX Player", "Lionsgate Play", "BookMyShow Stream", "Chaupal",
+    "ManoramaMAX", "Planet Marathi", "Eros Now", "STAGE", "ULLU",
+    "Netflix", "Amazon Prime", "Apple TV+", "Disney+", "HBO Max", "Paramount+",
+    "Peacock", "Hulu", "Crunchyroll", "Viki", "Discovery+", "YouTube", "Viu",
+    "MUBI", "Tubi", "Stan", "BritBox", "AMC+", "Starz", "Showtime", "ITVX",
+    "BBC iPlayer", "Channel 4", "SkyShowtime", "Rakuten Viki", "Shahid"
+  ],
+
   "_tvNetworksComment": "Linear TV channels. A show premiering on one of these is neither a cinema release nor an OTT drop, so the calendar must not label it 'Theatrical'. Matched on whole comma/slash-separated parts, never as substrings — the old substring test matched 'max' inside 'Miramax' and 'aha' inside 'Mahaveer'.",
   "tvNetworks": [
     "HGTV", "TLC", "Discovery", "Discovery Channel", "HBO", "Bravo", "History",

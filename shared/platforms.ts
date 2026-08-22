@@ -37,6 +37,12 @@ const TV_NETWORKS = new Set<string>(platformData.tvNetworks.map((n) => n.toLower
 /** Distinct canonical services (values of the alias table), for streamer detection. */
 const KNOWN_STREAMERS = new Set<string>(Object.values(ALIASES).map((n) => n.toLowerCase()));
 
+/** Networks worth showing as a last-resort "where to watch" answer when a
+ * title has no watch/providers listing anywhere yet — see resolveProviders
+ * in lib/tmdbProxy.ts. Canonical-cased (not lowercased) since callers compare
+ * against already-normalized platform names. */
+export const STREAMING_NETWORKS = new Set<string>(platformData.streamingNetworks);
+
 export type PlatformKind = "streaming" | "tv_network" | "theatrical";
 
 /**

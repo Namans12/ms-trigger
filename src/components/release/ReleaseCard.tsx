@@ -20,14 +20,17 @@ interface ReleaseCardProps {
   linkTo?: string;
   /** TV only, from the seasons cache; null while loading or unknown. */
   seasons?: number | null;
+  /** Live-fetched platform names, when the item itself doesn't already carry
+   * them. Falls back to `item.providers` when omitted. */
+  providers?: string[];
 }
 
 export function ReleaseCard({
   item, onAddToWatchlist, onAddToWatchLater, onMarkWatched,
-  onRemove, onAddToList, compact, showActions = true, dragHandle, index, linkTo, seasons,
+  onRemove, onAddToList, compact, showActions = true, dragHandle, index, linkTo, seasons, providers,
 }: ReleaseCardProps) {
   const year = item.releaseDate?.slice(0, 4);
-  const providers = (item.providers || []).slice(0, 3).join(", ");
+  const providerLabel = (providers ?? item.providers ?? []).slice(0, 3).join(", ");
 
   const body = (
     <>
@@ -71,7 +74,7 @@ export function ReleaseCard({
             </span>
           )}
         </div>
-        {providers && <p className="text-[11px] text-accent font-medium">{providers}</p>}
+        {providerLabel && <p className="text-[11px] text-accent font-medium">{providerLabel}</p>}
         {!compact && item.overview && (
           <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-relaxed">{item.overview}</p>
         )}

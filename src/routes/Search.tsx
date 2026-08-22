@@ -9,6 +9,7 @@ import { fromMovie } from '@/types/digest';
 import { useWatchlistContext } from '@/contexts/WatchlistContext';
 import { useMediaScope } from '@/hooks/useMediaScope';
 import { useSeasons } from '@/hooks/useSeasons';
+import { useProviders } from '@/hooks/useProviders';
 import { languageName, compareByLanguageName } from '@/lib/languages';
 
 export default function Search() {
@@ -75,6 +76,7 @@ export default function Search() {
       : scoped;
   const selectedLanguageLabel = [...selectedLanguageNames].join(', ');
   const seasonsFor = useSeasons(visible);
+  const providersFor = useProviders(visible);
 
   function updateLanguages(next: string[]) {
     const updated = new URLSearchParams(params);
@@ -169,6 +171,7 @@ export default function Search() {
             item={fromMovie(movie)}
             linkTo={`/title/${movie.mediaType}/${movie.id}`}
             seasons={seasonsFor(movie.mediaType, movie.id)}
+            providers={providersFor(movie.mediaType, movie.id)}
             onAddToWatchlist={() => wl.addToWatchlist(movie)}
             onAddToWatchLater={() => wl.addToWatchLater(movie)}
           />

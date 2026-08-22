@@ -15,6 +15,10 @@ interface PosterCardProps {
   rating?: TitleRating | null;
   /** TV only, from the seasons cache; null while loading or unknown. */
   seasons?: number | null;
+  /** Live-fetched platform names ("Netflix", "HBO"), when the item itself
+   * doesn't already carry them (release-calendar items do; search/browse/
+   * watchlist items don't). Falls back to `item.providers` when omitted. */
+  providers?: string[];
   /** One-line, user-facing explanation shown under the title — used by
    * Can Watch cards ("a running thread of jokes calls back to..."). */
   reason?: string | null;
@@ -33,12 +37,13 @@ export function PosterCard({
   className = '',
   rating,
   seasons,
+  providers,
   reason,
   onSuppress,
 }: PosterCardProps) {
   const year = item.releaseDate?.slice(0, 4);
   const hasActions = onAddToWatchlist || onAddToWatchLater;
-  const provider = item.providers?.[0];
+  const provider = (providers ?? item.providers)?.[0];
 
   const poster = (
     <div className={`group relative ${className}`}>
