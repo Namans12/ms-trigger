@@ -12,9 +12,11 @@ interface SortableMovieCardProps {
   onRemove: () => void;
   onAddToWatchLater?: () => void;
   onAddToList?: () => void;
+  /** TV only, from the seasons cache; null while loading or unknown. */
+  seasons?: number | null;
 }
 
-export function SortableMovieCard({ item, index, onMarkWatched, onRemove, onAddToWatchLater, onAddToList }: SortableMovieCardProps) {
+export function SortableMovieCard({ item, index, onMarkWatched, onRemove, onAddToWatchLater, onAddToList, seasons }: SortableMovieCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.dbId });
 
   const style = {
@@ -29,6 +31,7 @@ export function SortableMovieCard({ item, index, onMarkWatched, onRemove, onAddT
       <ReleaseCard
         item={fromMovie(item)}
         index={index}
+        seasons={seasons}
         onMarkWatched={onMarkWatched}
         onRemove={onRemove}
         onAddToWatchLater={onAddToWatchLater}

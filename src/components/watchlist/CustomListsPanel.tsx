@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CustomList, WatchlistItem } from '@/types/movie';
 import { ReleaseCard } from '@/components/release/ReleaseCard';
 import { fromMovie } from '@/types/digest';
+import { useSeasons } from '@/hooks/useSeasons';
 import { Plus, Trash2, ChevronDown, FolderOpen, Sparkles } from 'lucide-react';
 
 interface CustomListsPanelProps {
@@ -15,6 +16,9 @@ interface CustomListsPanelProps {
 export function CustomListsPanel({ lists, listItems, onCreate, onDelete, onRemoveItem }: CustomListsPanelProps) {
   const [newName, setNewName] = useState('');
   const [openListId, setOpenListId] = useState<number | null>(null);
+  // One batch across every list's items, not one per list — see useRatings'
+  // own comment for why this matters once there's more than a couple of lists.
+  const seasonsFor = useSeasons(Object.values(listItems).flat());
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +72,13 @@ export function CustomListsPanel({ lists, listItems, onCreate, onDelete, onRemov
                     <p className="text-xs text-muted-foreground p-4 text-center">Search and add movies to this list</p>
                   ) : (
                     items.map(item => (
-                      <ReleaseCard key={item.dbId} item={fromMovie(item)} compact onRemove={() => onRemoveItem(list.id, item.dbId)} />
+                      <ReleaseCard
+                        key={item.dbId}
+                        item={fromMovie(item)}
+                        compact
+                        seasons={seasonsFor(item.mediaType, item.id)}
+                        onRemove={() => onRemoveItem(list.id, item.dbId)}
+                      />
                     ))
                   )}
                 </div>

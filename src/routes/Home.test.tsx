@@ -18,9 +18,14 @@ vi.mock('@/lib/ratings', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/ratings')>()),
   fetchRatingsBatch: vi.fn().mockResolvedValue({}),
 }));
+vi.mock('@/lib/seasons', () => ({
+  fetchSeasonsBatch: vi.fn().mockResolvedValue({}),
+  seasonsKey: (tmdbId: number) => `tv:${tmdbId}`,
+}));
 vi.mock('@/contexts/WatchlistContext', () => ({
   useWatchlistContext: () => ({ addToWatchlist: vi.fn(), addToWatchLater: vi.fn() }),
 }));
+import { fetchSeasonsBatch } from '@/lib/seasons';
 
 function release(overrides: Partial<ReleaseItemDTO>): ReleaseItemDTO {
   return {
@@ -66,6 +71,7 @@ function renderHome(initialEntries = ['/']) {
 
 beforeEach(() => {
   vi.mocked(fetchDigest).mockReset();
+  vi.mocked(fetchSeasonsBatch).mockReset().mockResolvedValue({});
 });
 
 describe('Home platform filter', () => {
@@ -115,5 +121,24 @@ describe('Home platform filter', () => {
 
     await user.click(screen.getByRole('button', { name: /clear platform filter/i }));
     await waitFor(() => expect(screen.getByText('Prime Show')).toBeInTheDocument());
+  });
+});
+
+describe('Home season count', () => {
+  it('shows a TV card\'s season count once the seasons cache resolves, and never asks about a movie', async () => {
+    vi.mocked(fetchSeasonsBatch).mockResolvedValue({
+      'tv:1668': { tmdbId: 1668, mediaType: 'tv', numberOfSeasons: 10, fetchedAt: '2026-01-01', stale: false },
+    });
+    vi.mocked(fetchDigest).mockResolvedValue(
+      digest([
+        release({ tmdb_id: 1668, title: 'Friends', media_type: 'tv', providers: ['Netflix'] }),
+        release({ tmdb_id: 550, title: 'Fight Club', media_type: 'movie', providers: ['Netflix'] }),
+      ]),
+    );
+    renderHome();
+
+    expect(await screen.findByText('Friends')).toBeInTheDocument();
+    expect(await screen.findByText('10 Seasons')).toBeInTheDocument();
+    await waitFor(() => expect(fetchSeasonsBatch).toHaveBeenCalledWith([1668]));
   });
 });

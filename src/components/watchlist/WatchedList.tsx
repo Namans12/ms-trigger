@@ -1,6 +1,7 @@
 import { WatchlistItem } from '@/types/movie';
 import { ReleaseCard } from '@/components/release/ReleaseCard';
 import { fromMovie } from '@/types/digest';
+import { useSeasons } from '@/hooks/useSeasons';
 import { Trophy } from 'lucide-react';
 
 interface WatchedListProps {
@@ -12,6 +13,8 @@ interface WatchedListProps {
 }
 
 export function WatchedList({ items, onRemove, onMoveBack, onAddToWatchLater, onAddToList }: WatchedListProps) {
+  const seasonsFor = useSeasons(items);
+
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
@@ -29,6 +32,7 @@ export function WatchedList({ items, onRemove, onMoveBack, onAddToWatchLater, on
           key={item.dbId}
           item={fromMovie(item)}
           compact
+          seasons={seasonsFor(item.mediaType, item.id)}
           onRemove={() => onRemove(item.dbId)}
           onAddToWatchlist={() => onMoveBack(item.dbId)}
           onAddToWatchLater={() => onAddToWatchLater(item.dbId)}

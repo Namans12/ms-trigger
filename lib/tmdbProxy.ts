@@ -240,6 +240,10 @@ export interface TitleDetailResult {
   providers: string[];
   tmdbUrl: string;
   originalLanguage: string;
+  /** TV only; null for movies and for a show TMDB has no season count for.
+   *  Free here — this is the one TMDB call already made for every title-detail
+   *  page view, so no separate seasons lookup is needed on this page. */
+  numberOfSeasons: number | null;
 }
 
 const IMG_BASE = "https://image.tmdb.org/t/p/w500";
@@ -272,5 +276,9 @@ export async function tmdbDetail(mediaType: "movie" | "tv", id: number, region =
     providers,
     tmdbUrl: `https://www.themoviedb.org/${path}/${id}`,
     originalLanguage: r.original_language || "",
+    numberOfSeasons:
+      mediaType === "tv" && typeof r.number_of_seasons === "number" && r.number_of_seasons > 0
+        ? r.number_of_seasons
+        : null,
   };
 }

@@ -18,11 +18,13 @@ interface ReleaseCardProps {
    * omitted the card renders as a plain div — used by watchlist contexts
    * where the card's job is showing actions, not navigating away. */
   linkTo?: string;
+  /** TV only, from the seasons cache; null while loading or unknown. */
+  seasons?: number | null;
 }
 
 export function ReleaseCard({
   item, onAddToWatchlist, onAddToWatchLater, onMarkWatched,
-  onRemove, onAddToList, compact, showActions = true, dragHandle, index, linkTo,
+  onRemove, onAddToList, compact, showActions = true, dragHandle, index, linkTo, seasons,
 }: ReleaseCardProps) {
   const year = item.releaseDate?.slice(0, 4);
   const providers = (item.providers || []).slice(0, 3).join(", ");
@@ -57,6 +59,11 @@ export function ReleaseCard({
           >
             {item.mediaType === "tv" ? "TV" : "Film"}
           </span>
+          {item.mediaType === "tv" && seasons != null && (
+            <span className="text-[11px] text-muted-foreground">
+              {seasons} {seasons === 1 ? "Season" : "Seasons"}
+            </span>
+          )}
           {item.rating != null && item.rating > 0 && (
             <span className="inline-flex items-center gap-0.5 text-[11px] text-gold leading-none">
               <Star size={10} fill="currentColor" className="shrink-0" />

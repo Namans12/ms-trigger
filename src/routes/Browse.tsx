@@ -10,6 +10,7 @@ import { fromMovie } from '@/types/digest';
 import { PosterRow } from '@/components/release/PosterRow';
 import { useSuggestions } from '@/hooks/useSuggestions';
 import { useMediaScope } from '@/hooks/useMediaScope';
+import { useSeasons } from '@/hooks/useSeasons';
 import { cn } from '@/lib/utils';
 import { TrendingUp, Film, Tv, Flame, Loader2, RefreshCw, Check, Plus, Clock, Sparkles } from 'lucide-react';
 
@@ -58,6 +59,7 @@ export default function Browse() {
   const popularMovies = mediaType === 'tv' ? [] : (popularMoviesQuery.data ?? []);
   const popularTV = mediaType === 'movie' ? [] : (popularTVQuery.data ?? []);
   const heroMovie = trending.find((m) => m.backdropPath) || trending[0];
+  const seasonsFor = useSeasons([...trending, ...popularMovies, ...popularTV]);
 
   const suggestions = (suggestionsQuery.data ?? [])
     .map((row) => ({ ...row, items: inScope(row.items) }))
@@ -186,6 +188,7 @@ export default function Browse() {
                 key={movie.id}
                 item={fromMovie(movie)}
                 linkTo={`/title/${movie.mediaType}/${movie.id}`}
+                seasons={seasonsFor(movie.mediaType, movie.id)}
                 className="flex-shrink-0 w-[130px] sm:w-[150px]"
                 onAddToWatchlist={() => wl.addToWatchlist(movie)}
                 onAddToWatchLater={() => wl.addToWatchLater(movie)}
@@ -207,6 +210,7 @@ export default function Browse() {
                 key={movie.id}
                 item={fromMovie(movie)}
                 linkTo={`/title/${movie.mediaType}/${movie.id}`}
+                seasons={seasonsFor(movie.mediaType, movie.id)}
                 className="flex-shrink-0 w-[130px] sm:w-[150px]"
                 onAddToWatchlist={() => wl.addToWatchlist(movie)}
                 onAddToWatchLater={() => wl.addToWatchLater(movie)}
@@ -234,6 +238,7 @@ export default function Browse() {
                 key={movie.id}
                 item={fromMovie(movie)}
                 linkTo={`/title/${movie.mediaType}/${movie.id}`}
+                seasons={seasonsFor(movie.mediaType, movie.id)}
                 className="flex-shrink-0 w-[130px] sm:w-[150px]"
                 onAddToWatchlist={() => wl.addToWatchlist(movie)}
                 onAddToWatchLater={() => wl.addToWatchLater(movie)}

@@ -14,6 +14,8 @@ export interface TitleDetail {
   providers: string[];
   tmdbUrl: string;
   originalLanguage: string;
+  /** TV only; null for movies and for a show TMDB has no season count for. */
+  numberOfSeasons: number | null;
 }
 
 export async function fetchTitleDetail(mediaType: 'movie' | 'tv', id: number): Promise<TitleDetail> {

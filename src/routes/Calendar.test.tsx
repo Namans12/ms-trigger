@@ -12,6 +12,12 @@ import type { CalendarEntryDTO } from '../../shared/types/calendar';
 vi.mock('@/lib/api', () => ({ fetchCalendarMonth: vi.fn() }));
 import { fetchCalendarMonth } from '@/lib/api';
 
+vi.mock('@/lib/seasons', () => ({
+  fetchSeasonsBatch: vi.fn().mockResolvedValue({}),
+  seasonsKey: (tmdbId: number) => `tv:${tmdbId}`,
+}));
+import { fetchSeasonsBatch } from '@/lib/seasons';
+
 function entry(overrides: Partial<CalendarEntryDTO>): CalendarEntryDTO {
   return {
     releaseDate: '2026-08-21',
@@ -51,6 +57,7 @@ function renderCalendar(initialEntries = ['/calendar?month=2026-08']) {
 
 beforeEach(() => {
   vi.mocked(fetchCalendarMonth).mockReset();
+  vi.mocked(fetchSeasonsBatch).mockReset().mockResolvedValue({});
 });
 
 describe('Calendar language display and filter', () => {
@@ -125,6 +132,45 @@ describe('Calendar language display and filter', () => {
     await user.click(within(dialog).getByText('Chinese'));
     expect(screen.getByText('A')).toBeInTheDocument();
     expect(screen.getByText('B')).toBeInTheDocument();
+  });
+});
+
+describe('Calendar season count', () => {
+  it('shows a TV entry\'s season count once the seasons cache resolves', async () => {
+    vi.mocked(fetchSeasonsBatch).mockResolvedValue({
+      'tv:76331': { tmdbId: 76331, mediaType: 'tv', numberOfSeasons: 8, fetchedAt: '2026-01-01', stale: false },
+    });
+    vi.mocked(fetchCalendarMonth).mockResolvedValue({
+      month: '2026-08',
+      entries: [entry({ title: 'Game of Thrones', mediaType: 'tv', tmdbId: 76331, language: 'en' })],
+    });
+    renderCalendar();
+
+    expect(await screen.findByText('Game of Thrones')).toBeInTheDocument();
+    expect(await screen.findByText('8 Seasons')).toBeInTheDocument();
+  });
+
+  it('never asks the seasons cache about a movie entry', async () => {
+    vi.mocked(fetchCalendarMonth).mockResolvedValue({
+      month: '2026-08',
+      entries: [entry({ title: 'A Movie', mediaType: 'movie', tmdbId: 550, language: 'en' })],
+    });
+    renderCalendar();
+
+    await screen.findByText('A Movie');
+    expect(fetchSeasonsBatch).not.toHaveBeenCalled();
+  });
+
+  it('shows nothing extra for a TV entry the seasons cache has no answer for yet', async () => {
+    vi.mocked(fetchCalendarMonth).mockResolvedValue({
+      month: '2026-08',
+      entries: [entry({ title: 'Brand New Show', mediaType: 'tv', tmdbId: 999999, language: 'en' })],
+    });
+    renderCalendar();
+
+    await screen.findByText('Brand New Show');
+    await waitFor(() => expect(fetchSeasonsBatch).toHaveBeenCalledWith([999999]));
+    expect(screen.queryByText(/Season/)).not.toBeInTheDocument();
   });
 });
 

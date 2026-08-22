@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Search from './Search';
 import type { Movie } from '@/types/movie';
 
@@ -29,11 +30,17 @@ function movie(overrides: Partial<Movie>): Movie {
   };
 }
 
+// Search now also calls useSeasons (useQuery under the hood) for its TV
+// results, which needs a QueryClientProvider in scope — same reason
+// Calendar.test.tsx and Home.test.tsx wrap their subject the same way.
 function renderSearch(initialEntries = ['/search?q=love']) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter initialEntries={initialEntries}>
-      <Search />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={initialEntries}>
+        <Search />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 

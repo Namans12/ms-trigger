@@ -48,6 +48,17 @@ jobs:
           RATINGS_MAX_CALLS: "400"
         run: python scripts/backfill_ratings.py
 
+      # Fills the title_seasons cache so TV cards can show "8 Seasons" etc.
+      # without ever calling TMDB themselves. TMDB's own limits are generous,
+      # but capped per run anyway for the same reason ratings is: a cron step
+      # should never be able to turn into an unbounded loop.
+      - name: Backfill TV season counts
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SEASONS_MAX_CALLS: "400"
+        run: python scripts/backfill_seasons.py
+
       # Keeps calendar_entries populated past whatever the one-time editorial
       # CSV covered. Region-aware theatrical dates + TV premieres (scoped to
       # --tv-countries to avoid TMDB's crowdsourced global noise), idempotent,

@@ -13,6 +13,8 @@ interface PosterCardProps {
   className?: string;
   /** IMDb/RT scores when the cache has them; falls back to the TMDB score. */
   rating?: TitleRating | null;
+  /** TV only, from the seasons cache; null while loading or unknown. */
+  seasons?: number | null;
   /** One-line, user-facing explanation shown under the title — used by
    * Can Watch cards ("a running thread of jokes calls back to..."). */
   reason?: string | null;
@@ -30,6 +32,7 @@ export function PosterCard({
   onAddToWatchLater,
   className = '',
   rating,
+  seasons,
   reason,
   onSuppress,
 }: PosterCardProps) {
@@ -95,6 +98,11 @@ export function PosterCard({
         <span className="text-[9px] uppercase font-semibold text-muted-foreground">
           {item.mediaType === 'tv' ? 'TV' : 'Film'}
         </span>
+        {item.mediaType === 'tv' && seasons != null && (
+          <span className="text-[10px] text-muted-foreground">
+            {seasons} {seasons === 1 ? 'Season' : 'Seasons'}
+          </span>
+        )}
         {provider && <span className="text-[10px] text-accent font-medium truncate">{provider}</span>}
       </div>
 

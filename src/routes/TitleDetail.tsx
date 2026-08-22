@@ -24,6 +24,7 @@ import {
   Popcorn,
   ChevronRight,
   ChevronDown,
+  Layers,
 } from 'lucide-react';
 
 export default function TitleDetail() {
@@ -135,6 +136,11 @@ export default function TitleDetail() {
                   <Star size={11} fill="currentColor" /> {data.rating.toFixed(1)}
                 </span>
               )
+            )}
+            {data.mediaType === 'tv' && data.numberOfSeasons && (
+              <span className="inline-flex items-center gap-1">
+                <Layers size={11} /> {data.numberOfSeasons} {data.numberOfSeasons === 1 ? 'Season' : 'Seasons'}
+              </span>
             )}
             {data.runtime && (
               <span className="inline-flex items-center gap-1">

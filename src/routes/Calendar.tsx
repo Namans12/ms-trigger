@@ -6,6 +6,7 @@ import { Toolbar } from '@/components/layout/Toolbar';
 import { Segmented } from '@/components/ui/segmented';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { useMediaScope } from '@/hooks/useMediaScope';
+import { useSeasons, type SeasonsLookup } from '@/hooks/useSeasons';
 import { languageName, compareByLanguageName } from '@/lib/languages';
 import type { CalendarEntryDTO, CalendarKind } from '../../shared/types/calendar';
 import {
@@ -76,7 +77,7 @@ const TABS: { id: KindFilter; label: string }[] = [
   { id: 'tv_network', label: 'On TV' },
 ];
 
-function EntryRow({ entry }: { entry: CalendarEntryDTO }) {
+function EntryRow({ entry, seasons }: { entry: CalendarEntryDTO; seasons: number | null }) {
   const body = (
     <div className="flex items-center gap-3 p-3 bg-card rounded-xl border border-border hover:border-accent/30 hover:bg-card-hover transition-all duration-200">
       {/* Poster once the TMDB backfill has resolved the row; the icon tile is
@@ -103,6 +104,11 @@ function EntryRow({ entry }: { entry: CalendarEntryDTO }) {
         <p className="text-sm font-medium text-foreground truncate">{entry.title}</p>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
           {entry.platform && <span className="truncate">{entry.platform}</span>}
+          {entry.mediaType === 'tv' && seasons != null && (
+            <span className="opacity-60 shrink-0">
+              {seasons} {seasons === 1 ? 'Season' : 'Seasons'}
+            </span>
+          )}
           {entry.language && <span className="opacity-60 shrink-0">{languageName(entry.language)}</span>}
           {entry.originRegion && entry.originReleaseDate && (
             <span className="opacity-60 shrink-0">
@@ -126,7 +132,7 @@ function EntryRow({ entry }: { entry: CalendarEntryDTO }) {
   );
 }
 
-function DayGroups({ entries }: { entries: CalendarEntryDTO[] }) {
+function DayGroups({ entries, seasonsFor }: { entries: CalendarEntryDTO[]; seasonsFor: SeasonsLookup }) {
   const groups = new Map<string, CalendarEntryDTO[]>();
   for (const entry of entries) {
     if (!groups.has(entry.releaseDate)) groups.set(entry.releaseDate, []);
@@ -141,7 +147,11 @@ function DayGroups({ entries }: { entries: CalendarEntryDTO[] }) {
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{dayLabel(day)}</p>
           <div className="space-y-1.5">
             {groups.get(day)!.map((entry, i) => (
-              <EntryRow key={`${entry.title}-${i}`} entry={entry} />
+              <EntryRow
+                key={`${entry.title}-${i}`}
+                entry={entry}
+                seasons={entry.mediaType && entry.tmdbId ? seasonsFor(entry.mediaType, entry.tmdbId) : null}
+              />
             ))}
           </div>
         </div>
@@ -213,6 +223,15 @@ export default function Calendar() {
       : scopedEntries;
   const counts: Record<CalendarKind, number> = { theatrical: 0, streaming: 0, tv_network: 0 };
   for (const entry of entries) counts[entry.kind] = (counts[entry.kind] ?? 0) + 1;
+
+  // CalendarEntryDTO carries tmdbId/mediaType rather than Movie's id/mediaType
+  // shape, and either can be null for a not-yet-linked row — filtered out here
+  // rather than asking useSeasons to understand this DTO's nullability.
+  const seasonsFor = useSeasons(
+    entries
+      .filter((e): e is CalendarEntryDTO & { tmdbId: number; mediaType: 'movie' | 'tv' } => e.tmdbId != null && e.mediaType != null)
+      .map((e) => ({ id: e.tmdbId, mediaType: e.mediaType })),
+  );
 
   const visibleSections = kind === 'all' ? SECTIONS : SECTIONS.filter((s) => s.kind === kind);
   const hasAny = visibleSections.some((s) => counts[s.kind] > 0);
@@ -314,7 +333,7 @@ export default function Calendar() {
                 <span className="text-xs text-muted-foreground">{sectionEntries.length}</span>
                 <span className="flex-1 h-px bg-border ml-1" />
               </div>
-              <DayGroups entries={sectionEntries} />
+              <DayGroups entries={sectionEntries} seasonsFor={seasonsFor} />
             </section>
           );
         })}
