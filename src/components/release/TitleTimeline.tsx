@@ -146,7 +146,7 @@ export function TitleTimeline({ entries, onSuppress }: TitleTimelineProps) {
             {isCan && (
               <div
                 aria-hidden
-                className="absolute left-[20px] border-l-2 border-dashed border-muted-foreground/60"
+                className="absolute left-[21px] border-l-2 border-dashed border-muted-foreground/60"
                 style={{ top: 0, bottom: 0 }}
               />
             )}
