@@ -8,6 +8,8 @@ import { WatchlistProvider } from '@/contexts/WatchlistContext';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { IntroGate } from '@/components/intro/IntroGate';
+import { RouteErrorBoundary } from '@/components/system/RouteErrorBoundary';
+import { RouteFallback } from '@/components/system/RouteFallback';
 
 const Home = lazy(() => import('./routes/Home'));
 const Calendar = lazy(() => import('./routes/Calendar'));
@@ -33,34 +35,39 @@ const App = () => (
         <IntroGate>
           <Toaster />
           <BrowserRouter>
-            <Suspense fallback={<div className="min-h-screen bg-background" />}>
-              <Routes>
-                <Route element={<AppShell />}>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/calendar" element={<Calendar />} />
-                  <Route path="/search" element={<Search />} />
-                  <Route path="/browse" element={<Browse />} />
-                  <Route path="/title/:type/:id" element={<TitleDetail />} />
-                  <Route path="/title/:type/:id/connections" element={<TitleConnections />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route
-                    path="/list"
-                    element={
-                      <RequireAuth>
-                        <ListLayout />
-                      </RequireAuth>
-                    }
-                  >
-                    <Route index element={<Navigate to="watchlist" replace />} />
-                    <Route path="watchlist" element={<Watchlist />} />
-                    <Route path="later" element={<WatchLater />} />
-                    <Route path="watched" element={<Watched />} />
-                    <Route path="lists" element={<CustomLists />} />
+            {/* Boundary sits above Suspense so it catches a *rejected* lazy
+                import (a stale chunk after a deploy), which Suspense itself
+                rethrows rather than handles. */}
+            <RouteErrorBoundary>
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route element={<AppShell />}>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/calendar" element={<Calendar />} />
+                    <Route path="/search" element={<Search />} />
+                    <Route path="/browse" element={<Browse />} />
+                    <Route path="/title/:type/:id" element={<TitleDetail />} />
+                    <Route path="/title/:type/:id/connections" element={<TitleConnections />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route
+                      path="/list"
+                      element={
+                        <RequireAuth>
+                          <ListLayout />
+                        </RequireAuth>
+                      }
+                    >
+                      <Route index element={<Navigate to="watchlist" replace />} />
+                      <Route path="watchlist" element={<Watchlist />} />
+                      <Route path="later" element={<WatchLater />} />
+                      <Route path="watched" element={<Watched />} />
+                      <Route path="lists" element={<CustomLists />} />
+                    </Route>
+                    <Route path="*" element={<NotFound />} />
                   </Route>
-                  <Route path="*" element={<NotFound />} />
-                </Route>
-              </Routes>
-            </Suspense>
+                </Routes>
+              </Suspense>
+            </RouteErrorBoundary>
           </BrowserRouter>
         </IntroGate>
       </TooltipProvider>

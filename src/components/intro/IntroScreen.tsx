@@ -97,10 +97,19 @@ export function IntroScreen({ onEnter }: IntroScreenProps) {
         <Meteors number={21} minDuration={3} maxDuration={9} />
       </div>
 
+      {/* The intro's LCP element. index.html preloads it at high priority —
+          without that it isn't even discovered until the entry bundle has
+          parsed and rendered this tree. 900px WebP replaces a 1198px 586KB PNG
+          that displayed at most 340px wide. width/height are the intrinsic
+          ratio: CSS sets `width` and `height: auto`, so these only serve to
+          reserve the right box before the bytes land. */}
       <img
-        src="/spotlight-transparent-window-mounted.png"
+        src="/spotlight-fixture.webp"
         alt=""
         className="intro-fixture"
+        width={900}
+        height={986}
+        decoding="async"
         style={{ ["--rod-pct" as string]: "37.4%" }}
       />
 

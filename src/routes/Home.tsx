@@ -54,24 +54,65 @@ export default function Home() {
   }
 
   const win = data?.[windowKey];
+
+  // Every DTO in the current window, mapped exactly once per fetch.
+  //
+  // This used to run as four separate full traversals on *every* render — one
+  // for the ratings batch, one for the platform list (over both windows), one
+  // for the empty-state check, and one more inside the section map below — so
+  // each filter click or URL change re-mapped ~80 items four times over before
+  // React even began diffing.
+  const sectionItems = useMemo(() => {
+    if (!win) return null;
+    const bySection = new Map<string, ReturnType<typeof fromDigestDTO>[]>();
+    for (const [key, dtos] of Object.entries(win.sections)) {
+      bySection.set(key, dtos.map(fromDigestDTO));
+    }
+    return bySection;
+  }, [win]);
+
   // One batch ratings request for the whole window, not one per provider
   // group — see useRatings' own comment. Every section/provider grid below
   // shares this single lookup instead of each fetching its own subset.
-  const allWindowItems = win ? Object.values(win.sections).flat().map(fromDigestDTO) : [];
+  const allWindowItems = useMemo(
+    () => (sectionItems ? [...sectionItems.values()].flat() : []),
+    [sectionItems],
+  );
   const ratingFor = useRatings(allWindowItems);
-  const filters = { mediaType, platform: selectedPlatforms };
-  const platforms = data
-    ? allProviders([
-        ...Object.values(data.out_now.sections).flat().map(fromDigestDTO),
-        ...Object.values(data.coming_up.sections).flat().map(fromDigestDTO),
-      ])
-    : [];
-  const visibleSections = section === 'all' ? SECTION_ORDER : SECTION_ORDER.filter((s) => s === section);
-  const anyResults =
-    !!win &&
-    visibleSections.some((s) =>
-      (win.sections[s] || []).map(fromDigestDTO).some((item) => matchesFilters(item, filters)),
-    );
+
+  // Stable identity so SectionBlock's props don't change on unrelated renders.
+  const filters = useMemo(
+    () => ({ mediaType, platform: selectedPlatforms }),
+    [mediaType, selectedPlatforms],
+  );
+
+  // Spans both windows, so it depends on `data` rather than the selected
+  // window — the platform dropdown shouldn't gain and lose options as you
+  // toggle Out Now / Coming Up.
+  const platforms = useMemo(
+    () =>
+      data
+        ? allProviders([
+            ...Object.values(data.out_now.sections).flat().map(fromDigestDTO),
+            ...Object.values(data.coming_up.sections).flat().map(fromDigestDTO),
+          ])
+        : [],
+    [data],
+  );
+
+  const visibleSections = useMemo(
+    () => (section === 'all' ? SECTION_ORDER : SECTION_ORDER.filter((s) => s === section)),
+    [section],
+  );
+
+  const anyResults = useMemo(
+    () =>
+      !!sectionItems &&
+      visibleSections.some((s) =>
+        (sectionItems.get(s) ?? []).some((item) => matchesFilters(item, filters)),
+      ),
+    [sectionItems, visibleSections, filters],
+  );
 
   return (
     <div className="space-y-6">
@@ -123,7 +164,7 @@ export default function Home() {
               <SectionBlock
                 key={s}
                 section={s}
-                items={(win.sections[s] || []).map(fromDigestDTO)}
+                items={sectionItems?.get(s) ?? []}
                 filters={filters}
                 linkBase="/title"
                 ratingFor={ratingFor}

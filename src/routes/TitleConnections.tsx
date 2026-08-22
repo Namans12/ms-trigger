@@ -105,6 +105,28 @@ export default function TitleConnections() {
     );
   }
 
+  // Without this branch a failed relations fetch fell through to the empty-state
+  // copy below and told the user the title "stands on its own" — presenting an
+  // outage as a fact about the film. Say we don't know instead.
+  if (relationsQuery.isError) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+        <p className="text-sm text-muted-foreground">
+          Couldn&apos;t load the watch order for this title.
+        </p>
+        <button
+          type="button"
+          onClick={() => relationsQuery.refetch()}
+          disabled={relationsQuery.isFetching}
+          className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-60"
+        >
+          {relationsQuery.isFetching && <Loader2 size={13} className="animate-spin" />}
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   const before = relations?.mustWatch.before ?? [];
   const after = relations?.mustWatch.after ?? [];
   const canWatch = relations?.canWatch ?? [];

@@ -1,4 +1,5 @@
 import type { Movie } from '@/types/movie';
+import { fetchJson } from '@/lib/http';
 
 /** Mirrors MAX_DEPTH in lib/relationsDb.ts — the depth the connections view
  * requests, since a timeline's whole job is to show the complete chain. */
@@ -36,10 +37,15 @@ export async function fetchRelations(
   mediaType: 'movie' | 'tv',
   id: number,
   depth = 1,
-): Promise<TitleRelations | undefined> {
-  const res = await fetch(`/api/relations?type=${mediaType}&id=${id}&depth=${depth}`);
-  if (!res.ok) return undefined;
-  return res.json();
+): Promise<TitleRelations | null> {
+  // Returning `undefined` here used to make React Query fail the query with
+  // "data is undefined" and burn its whole retry budget, so a single 504 became
+  // a minute of spinner and then a page confidently claiming the title stands
+  // alone. Throw on failure so `isError` can say so, and use `null` for the
+  // legitimate "no relations known" answer the API sends.
+  return fetchJson<TitleRelations | null>(
+    `/api/relations?type=${mediaType}&id=${id}&depth=${depth}`,
+  );
 }
 
 /** Thumbs-down: hides one edge for good. Owner-only server-side, and the only

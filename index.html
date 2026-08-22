@@ -10,8 +10,34 @@
     <link rel="icon" type="image/png" href="/icons/icon-192.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Fonts come from Fontshare, not Google — the old preconnects here pointed
+         at fonts.googleapis.com/fonts.gstatic.com, which this app never touches,
+         so they warmed two connections we never used and left the host we do use
+         cold. Declaring the stylesheets here rather than @import-ing them from
+         index.css also removes a hop: the font CSS now downloads in parallel with
+         our own stylesheet instead of only being discovered after it parses. -->
+    <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <!-- Two requests on purpose: asking Fontshare for both families in one URL
+         silently drops Synonym from the response. -->
+    <link
+      rel="stylesheet"
+      href="https://api.fontshare.com/v2/css?f[]=chillax@500,600,700&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://api.fontshare.com/v2/css?f[]=synonym@400,500,600&display=swap"
+    />
+
+    <!-- Every poster and backdrop in the app is served from here, and the first
+         of them isn't requested until the entry bundle has run — so the TCP+TLS
+         handshake is pure latency we can pay upfront instead. -->
+    <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
+
+    <!-- The intro splash is the LCP element on a first visit and lives inside a
+         lazy React tree, so without this it isn't discovered until the bundle
+         parses and renders. -->
+    <link rel="preload" as="image" href="/spotlight-fixture.webp" fetchpriority="high" />
     <!-- Google Identity Services: renders the "Continue with Google" button
          and hands the frontend a signed ID token — no OAuth redirect dance,
          no client secret. Loaded globally since GoogleSignIn is lazy-loaded
