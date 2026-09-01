@@ -120,6 +120,7 @@ And one repo **variable** (not secret) under the same page's "Variables" tab:
 | Variable name | Value |
 |---|---|
 | `DASHBOARD_URL` | Your deployed site URL, e.g. `https://your-project.vercel.app/` |
+| `NOTIFY_OWNER_EMAILS` | Comma-separated email address(es) (the Google account(s) you sign into the site with) whose watchlist should trigger a Telegram alert when a title arrives |
 
 ### 7. Deploy to Vercel
 
@@ -130,7 +131,7 @@ And one repo **variable** (not secret) under the same page's "Variables" tab:
 
 ### 8. Done
 
-`.github/workflows/ott-radar.yml` runs Wed/Fri at 2:00 PM IST (Telegram + email + Postgres refresh). `.github/workflows/ott-radar-nightly.yml` runs daily (Postgres refresh, ratings backfill, calendar sync + TMDB linking — no notifications). Both can be triggered manually from the Actions tab.
+`.github/workflows/ott-radar.yml` runs Wed/Fri at 2:00 PM IST (Postgres refresh + owner-scoped Telegram watchlist alerts — see `SEND_BROADCAST_DIGEST`/`NOTIFY_OWNER_EMAILS` above). `.github/workflows/ott-radar-nightly.yml` runs daily (Postgres refresh, ratings backfill, calendar sync + TMDB linking — no notifications). Both can be triggered manually from the Actions tab.
 
 ## Configuration (env vars)
 
@@ -151,6 +152,8 @@ And one repo **variable** (not secret) under the same page's "Variables" tab:
 | `DATABASE_URL` | — | Neon Postgres connection string |
 | `TELEGRAM_ENABLED` | `true` | Toggle Telegram delivery |
 | `EMAIL_ENABLED` | `false` | Toggle email delivery |
+| `SEND_BROADCAST_DIGEST` | `true` | Send the full Out Now/Coming Up digest via Telegram/email. Set `false` to send only owner-scoped watchlist-drop alerts |
+| `NOTIFY_OWNER_EMAILS` | — | Required whenever a watchlist-drop alert would fire (not dry-run, at least one channel enabled). Comma-separated owner email(s) — see repo variables above |
 | `OMDB_API_KEY` | — | OMDb key for IMDb/RT scores. Unset = no ratings anywhere, silently |
 | `RATINGS_MAX_CALLS` | `400` | OMDb requests one `scripts/backfill_ratings.py` run may spend |
 

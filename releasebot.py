@@ -87,6 +87,13 @@ def env_list(name: str, default: str) -> list[str]:
     return [part.strip() for part in os.getenv(name, default).split(",") if part.strip()]
 
 
+def env_required_list(name: str) -> list[str]:
+    parts = [part.strip() for part in env_required(name).split(",") if part.strip()]
+    if not parts:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return parts
+
+
 def env_bool(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -1360,14 +1367,26 @@ def write_release_items_to_db(digest: dict[str, Any], conn: Any) -> int:
     return count
 
 
-def find_watchlist_matches(digest: dict[str, Any], conn: Any) -> list[dict[str, Any]]:
-    """Cross-reference this digest's out_now items against the owner's
-    watchlist/watchLater buckets. Returns matches worth alerting on."""
+def find_watchlist_matches(
+    digest: dict[str, Any], conn: Any, owner_emails: list[str]
+) -> list[dict[str, Any]]:
+    """Cross-reference this digest's out_now items against the owner's own
+    watchlist/watchLater buckets (scoped by owner_emails — other users'
+    watchlists must never trigger an alert to the owner). Returns matches
+    worth alerting on."""
     all_out_now_items = [item for items in digest["out_now"]["sections"].values() for item in items]
     if not all_out_now_items:
         return []
     with conn.cursor() as cur:
-        cur.execute("SELECT tmdb_id, media_type FROM watchlist_items WHERE bucket IN ('watchlist','watchLater')")
+        cur.execute(
+            """
+            SELECT wi.tmdb_id, wi.media_type
+            FROM watchlist_items wi
+            JOIN users u ON u.id = wi.user_id
+            WHERE wi.bucket IN ('watchlist','watchLater') AND u.email = ANY(%s)
+            """,
+            (owner_emails,),
+        )
         watched_keys = {(row[0], row[1]) for row in cur.fetchall()}
     matches = []
     for item in all_out_now_items:
@@ -1514,6 +1533,12 @@ def main() -> int:
     dry_run = env_bool("DRY_RUN", False)
     telegram_enabled = env_bool("TELEGRAM_ENABLED", True) and not dry_run
     email_enabled = env_bool("EMAIL_ENABLED", False) and not dry_run
+    # Separate from telegram_enabled/email_enabled, which mean "this
+    # channel's credentials are configured" and are also used to gate the
+    # watchlist-drop alerts below. This flag controls only the full
+    # Out Now/Coming Up broadcast, so the broadcast can be turned off while
+    # watchlist alerts keep working.
+    send_broadcast_digest = env_bool("SEND_BROADCAST_DIGEST", True) and not dry_run
 
     digest = build_digest(diagnostics=dry_run or env_bool("DIAGNOSTICS", False))
     out_sections = digest["out_now"]["sections"]
@@ -1547,11 +1572,11 @@ def main() -> int:
             print(f"Postgres write failed: {exc}", file=sys.stderr)
             failures.append(f"Postgres write failed: {exc}")
 
-    if telegram_enabled:
+    if telegram_enabled and send_broadcast_digest:
         send_telegram_message(env_required("TELEGRAM_BOT_TOKEN"), env_required("TELEGRAM_CHAT_ID"), message)
         sent_channels.append("Telegram")
 
-    if email_enabled:
+    if email_enabled and send_broadcast_digest:
         subject = f"OTT Radar: Out now {out_start.isoformat()} → {out_end.isoformat()} + coming up"
         send_email_message(
             smtp_host=env_required("SMTP_HOST"),
@@ -1571,34 +1596,46 @@ def main() -> int:
     # neither channel enabled).
     if db_conn is not None and not dry_run and (telegram_enabled or email_enabled):
         try:
-            matches = find_watchlist_matches(digest, db_conn)
-            if matches:
-                telegram_sender = (
-                    (lambda text: send_telegram_message(env_required("TELEGRAM_BOT_TOKEN"), env_required("TELEGRAM_CHAT_ID"), text))
-                    if telegram_enabled
-                    else None
-                )
-                email_sender = (
-                    (
-                        lambda text: send_email_message(
-                            smtp_host=env_required("SMTP_HOST"),
-                            smtp_port=int(os.getenv("SMTP_PORT", "587")),
-                            smtp_username=env_required("SMTP_USERNAME"),
-                            smtp_password=env_required("SMTP_PASSWORD"),
-                            email_from=os.getenv("EMAIL_FROM", os.getenv("SMTP_USERNAME", "")),
-                            email_to=env_required("EMAIL_TO"),
-                            subject="🎯 From your watchlist",
-                            text_body=text,
-                            html_body=f"<p>{escape_html(text)}</p>",
-                        )
+            owner_emails = env_required_list("NOTIFY_OWNER_EMAILS")
+        except RuntimeError as exc:
+            # A misconfigured owner list is a config bug, not a transient
+            # send failure — with the broadcast off, missed alerts are the
+            # only symptom, so this must be loud (see the Postgres-failure
+            # `failures` list above) rather than swallowed as non-fatal.
+            print(f"Watchlist-alert step failed: {exc}", file=sys.stderr)
+            failures.append(f"Watchlist-alert step failed: {exc}")
+        else:
+            try:
+                matches = find_watchlist_matches(digest, db_conn, owner_emails)
+                if matches:
+                    telegram_sender = (
+                        (lambda text: send_telegram_message(env_required("TELEGRAM_BOT_TOKEN"), env_required("TELEGRAM_CHAT_ID"), text))
+                        if telegram_enabled
+                        else None
                     )
-                    if email_enabled
-                    else None
-                )
-                send_watchlist_alerts(matches, db_conn, telegram_sender, email_sender)
-                print(f"Sent {len(matches)} watchlist-drop alert(s)")
-        except Exception as exc:  # pragma: no cover
-            print(f"Watchlist-alert step failed (non-fatal): {exc}", file=sys.stderr)
+                    email_sender = (
+                        (
+                            lambda text: send_email_message(
+                                smtp_host=env_required("SMTP_HOST"),
+                                smtp_port=int(os.getenv("SMTP_PORT", "587")),
+                                smtp_username=env_required("SMTP_USERNAME"),
+                                smtp_password=env_required("SMTP_PASSWORD"),
+                                email_from=os.getenv("EMAIL_FROM", os.getenv("SMTP_USERNAME", "")),
+                                email_to=env_required("EMAIL_TO"),
+                                subject="🎯 From your watchlist",
+                                text_body=text,
+                                html_body=f"<p>{escape_html(text)}</p>",
+                            )
+                        )
+                        if email_enabled
+                        else None
+                    )
+                    send_watchlist_alerts(matches, db_conn, telegram_sender, email_sender)
+                    print(f"Sent {len(matches)} watchlist-drop alert(s)")
+                else:
+                    print(f"Watchlist check: 0 matches for {len(owner_emails)} owner email(s)")
+            except Exception as exc:  # pragma: no cover
+                print(f"Watchlist-alert step failed (non-fatal): {exc}", file=sys.stderr)
 
     if db_conn is not None:
         db_conn.close()
