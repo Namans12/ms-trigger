@@ -38,28 +38,34 @@ be switched off while watchlist alerts keep working.
 
 ### 2. Scope matches to the owner (`releasebot.py`)
 
-Add a required env var `NOTIFY_OWNER_EMAIL`. `find_watchlist_matches`
-joins `watchlist_items` to `users` and filters `u.email = %s` using that
-value, instead of matching every user's watchlist:
+Add a required env var `NOTIFY_OWNER_EMAILS` — comma-separated, following
+the same convention as `LANGUAGES` (parsed with `env_list`, but required
+rather than defaulted — a small `env_required_list` helper). The owner has
+two Google accounts they want alerts for, so this is a list from the
+start rather than a single value.
+
+`find_watchlist_matches` joins `watchlist_items` to `users` and filters
+`u.email = ANY(%s)` using that list, instead of matching every user's
+watchlist:
 
 ```sql
 SELECT wi.tmdb_id, wi.media_type
 FROM watchlist_items wi
 JOIN users u ON u.id = wi.user_id
-WHERE wi.bucket IN ('watchlist','watchLater') AND u.email = %s
+WHERE wi.bucket IN ('watchlist','watchLater') AND u.email = ANY(%s)
 ```
 
-If `NOTIFY_OWNER_EMAIL` is unset, fail loudly (same `env_required` pattern
-already used for `TMDB_API_KEY` etc.) rather than silently matching nobody
-or everybody.
+If `NOTIFY_OWNER_EMAILS` is unset, fail loudly (same `env_required`
+pattern already used for `TMDB_API_KEY` etc.) rather than silently
+matching nobody or everybody.
 
 ### 3. Workflow config (`.github/workflows/ott-radar.yml`)
 
 - `SEND_BROADCAST_DIGEST: "false"` — stop the full digest.
 - `EMAIL_ENABLED: "false"` — Telegram-only, per the owner's choice.
-- `NOTIFY_OWNER_EMAIL: ${{ vars.NOTIFY_OWNER_EMAIL }}` — new repo
-  **variable** (not secret; it's just an email address), added by the
-  owner directly in GitHub.
+- `NOTIFY_OWNER_EMAILS: ${{ vars.NOTIFY_OWNER_EMAILS }}` — new repo
+  **variable** (not secret; it's just email addresses), added by the
+  owner directly in GitHub. Comma-separated if more than one.
 - Schedule (Wed/Fri) and the nightly refresh workflow are unchanged — the
   ask was about *what* gets sent, not *when* the check runs.
 
@@ -69,14 +75,16 @@ or everybody.
 - No change to the nightly workflow — it already runs with `DRY_RUN=true`,
   which already skips both broadcast and watchlist alerts.
 - No change to `sent_notifications` dedup — it's keyed on
-  `(tmdb_id, media_type, notification_kind, channel)` globally, which is
-  correct once matches are scoped to a single recipient.
+  `(tmdb_id, media_type, notification_kind, channel)` globally. Still
+  correct with two owner emails: both route to the same single Telegram
+  chat, so one alert per title/channel is right even if both accounts
+  happen to watchlist the same title.
 
 ## Testing
 
 - `tests/` already covers `releasebot.py` helpers — add/extend a unit test
   for `find_watchlist_matches` confirming it only returns rows for the
-  configured owner email, not other users' watchlist rows.
+  configured owner email(s), not other users' watchlist rows.
 - Manual verification: run `releasebot.py` locally with
   `DRY_RUN=true` (preview only) to confirm the broadcast-skip flag and
   owner-scoped query don't throw, since a live Telegram send can't be
