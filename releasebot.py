@@ -1365,14 +1365,26 @@ def write_release_items_to_db(digest: dict[str, Any], conn: Any) -> int:
     return count
 
 
-def find_watchlist_matches(digest: dict[str, Any], conn: Any) -> list[dict[str, Any]]:
-    """Cross-reference this digest's out_now items against the owner's
-    watchlist/watchLater buckets. Returns matches worth alerting on."""
+def find_watchlist_matches(
+    digest: dict[str, Any], conn: Any, owner_emails: list[str]
+) -> list[dict[str, Any]]:
+    """Cross-reference this digest's out_now items against the owner's own
+    watchlist/watchLater buckets (scoped by owner_emails — other users'
+    watchlists must never trigger an alert to the owner). Returns matches
+    worth alerting on."""
     all_out_now_items = [item for items in digest["out_now"]["sections"].values() for item in items]
     if not all_out_now_items:
         return []
     with conn.cursor() as cur:
-        cur.execute("SELECT tmdb_id, media_type FROM watchlist_items WHERE bucket IN ('watchlist','watchLater')")
+        cur.execute(
+            """
+            SELECT wi.tmdb_id, wi.media_type
+            FROM watchlist_items wi
+            JOIN users u ON u.id = wi.user_id
+            WHERE wi.bucket IN ('watchlist','watchLater') AND u.email = ANY(%s)
+            """,
+            (owner_emails,),
+        )
         watched_keys = {(row[0], row[1]) for row in cur.fetchall()}
     matches = []
     for item in all_out_now_items:
