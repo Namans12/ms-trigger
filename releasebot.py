@@ -87,6 +87,11 @@ def env_list(name: str, default: str) -> list[str]:
     return [part.strip() for part in os.getenv(name, default).split(",") if part.strip()]
 
 
+def env_required_list(name: str) -> list[str]:
+    raw = env_required(name)
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
 def env_bool(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
