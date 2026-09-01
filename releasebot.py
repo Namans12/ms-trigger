@@ -88,8 +88,10 @@ def env_list(name: str, default: str) -> list[str]:
 
 
 def env_required_list(name: str) -> list[str]:
-    raw = env_required(name)
-    return [part.strip() for part in raw.split(",") if part.strip()]
+    parts = [part.strip() for part in env_required(name).split(",") if part.strip()]
+    if not parts:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return parts
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -1595,34 +1597,45 @@ def main() -> int:
     if db_conn is not None and not dry_run and (telegram_enabled or email_enabled):
         try:
             owner_emails = env_required_list("NOTIFY_OWNER_EMAILS")
-            matches = find_watchlist_matches(digest, db_conn, owner_emails)
-            if matches:
-                telegram_sender = (
-                    (lambda text: send_telegram_message(env_required("TELEGRAM_BOT_TOKEN"), env_required("TELEGRAM_CHAT_ID"), text))
-                    if telegram_enabled
-                    else None
-                )
-                email_sender = (
-                    (
-                        lambda text: send_email_message(
-                            smtp_host=env_required("SMTP_HOST"),
-                            smtp_port=int(os.getenv("SMTP_PORT", "587")),
-                            smtp_username=env_required("SMTP_USERNAME"),
-                            smtp_password=env_required("SMTP_PASSWORD"),
-                            email_from=os.getenv("EMAIL_FROM", os.getenv("SMTP_USERNAME", "")),
-                            email_to=env_required("EMAIL_TO"),
-                            subject="🎯 From your watchlist",
-                            text_body=text,
-                            html_body=f"<p>{escape_html(text)}</p>",
-                        )
+        except RuntimeError as exc:
+            # A misconfigured owner list is a config bug, not a transient
+            # send failure — with the broadcast off, missed alerts are the
+            # only symptom, so this must be loud (see the Postgres-failure
+            # `failures` list above) rather than swallowed as non-fatal.
+            print(f"Watchlist-alert step failed: {exc}", file=sys.stderr)
+            failures.append(f"Watchlist-alert step failed: {exc}")
+        else:
+            try:
+                matches = find_watchlist_matches(digest, db_conn, owner_emails)
+                if matches:
+                    telegram_sender = (
+                        (lambda text: send_telegram_message(env_required("TELEGRAM_BOT_TOKEN"), env_required("TELEGRAM_CHAT_ID"), text))
+                        if telegram_enabled
+                        else None
                     )
-                    if email_enabled
-                    else None
-                )
-                send_watchlist_alerts(matches, db_conn, telegram_sender, email_sender)
-                print(f"Sent {len(matches)} watchlist-drop alert(s)")
-        except Exception as exc:  # pragma: no cover
-            print(f"Watchlist-alert step failed (non-fatal): {exc}", file=sys.stderr)
+                    email_sender = (
+                        (
+                            lambda text: send_email_message(
+                                smtp_host=env_required("SMTP_HOST"),
+                                smtp_port=int(os.getenv("SMTP_PORT", "587")),
+                                smtp_username=env_required("SMTP_USERNAME"),
+                                smtp_password=env_required("SMTP_PASSWORD"),
+                                email_from=os.getenv("EMAIL_FROM", os.getenv("SMTP_USERNAME", "")),
+                                email_to=env_required("EMAIL_TO"),
+                                subject="🎯 From your watchlist",
+                                text_body=text,
+                                html_body=f"<p>{escape_html(text)}</p>",
+                            )
+                        )
+                        if email_enabled
+                        else None
+                    )
+                    send_watchlist_alerts(matches, db_conn, telegram_sender, email_sender)
+                    print(f"Sent {len(matches)} watchlist-drop alert(s)")
+                else:
+                    print(f"Watchlist check: 0 matches for {len(owner_emails)} owner email(s)")
+            except Exception as exc:  # pragma: no cover
+                print(f"Watchlist-alert step failed (non-fatal): {exc}", file=sys.stderr)
 
     if db_conn is not None:
         db_conn.close()

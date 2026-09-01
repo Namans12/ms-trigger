@@ -32,3 +32,9 @@ def test_env_required_list_empty_string_raises(monkeypatch):
     monkeypatch.setenv("SOME_LIST", "")
     with pytest.raises(RuntimeError, match="SOME_LIST"):
         rb.env_required_list("SOME_LIST")
+
+
+def test_env_required_list_whitespace_and_commas_only_raises(monkeypatch):
+    monkeypatch.setenv("SOME_LIST", " , , ")
+    with pytest.raises(RuntimeError, match="SOME_LIST"):
+        rb.env_required_list("SOME_LIST")
