@@ -39,13 +39,15 @@ jobs:
           TELEGRAM_ENABLED: "true"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          EMAIL_ENABLED: "true"
+          EMAIL_ENABLED: "false"
           SMTP_HOST: smtp.gmail.com
           SMTP_PORT: "587"
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          SEND_BROADCAST_DIGEST: "false"
+          NOTIFY_OWNER_EMAILS: ${{ vars.NOTIFY_OWNER_EMAILS }}
           REGION: IN
           LANGUAGES: hi,en
           POPULAR_MIN_POPULARITY: "25"

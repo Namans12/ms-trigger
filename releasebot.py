@@ -1531,6 +1531,12 @@ def main() -> int:
     dry_run = env_bool("DRY_RUN", False)
     telegram_enabled = env_bool("TELEGRAM_ENABLED", True) and not dry_run
     email_enabled = env_bool("EMAIL_ENABLED", False) and not dry_run
+    # Separate from telegram_enabled/email_enabled, which mean "this
+    # channel's credentials are configured" and are also used to gate the
+    # watchlist-drop alerts below. This flag controls only the full
+    # Out Now/Coming Up broadcast, so the broadcast can be turned off while
+    # watchlist alerts keep working.
+    send_broadcast_digest = env_bool("SEND_BROADCAST_DIGEST", True) and not dry_run
 
     digest = build_digest(diagnostics=dry_run or env_bool("DIAGNOSTICS", False))
     out_sections = digest["out_now"]["sections"]
@@ -1564,11 +1570,11 @@ def main() -> int:
             print(f"Postgres write failed: {exc}", file=sys.stderr)
             failures.append(f"Postgres write failed: {exc}")
 
-    if telegram_enabled:
+    if telegram_enabled and send_broadcast_digest:
         send_telegram_message(env_required("TELEGRAM_BOT_TOKEN"), env_required("TELEGRAM_CHAT_ID"), message)
         sent_channels.append("Telegram")
 
-    if email_enabled:
+    if email_enabled and send_broadcast_digest:
         subject = f"OTT Radar: Out now {out_start.isoformat()} → {out_end.isoformat()} + coming up"
         send_email_message(
             smtp_host=env_required("SMTP_HOST"),
@@ -1588,7 +1594,8 @@ def main() -> int:
     # neither channel enabled).
     if db_conn is not None and not dry_run and (telegram_enabled or email_enabled):
         try:
-            matches = find_watchlist_matches(digest, db_conn)
+            owner_emails = env_required_list("NOTIFY_OWNER_EMAILS")
+            matches = find_watchlist_matches(digest, db_conn, owner_emails)
             if matches:
                 telegram_sender = (
                     (lambda text: send_telegram_message(env_required("TELEGRAM_BOT_TOKEN"), env_required("TELEGRAM_CHAT_ID"), text))
