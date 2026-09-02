@@ -6,7 +6,7 @@ A twice-weekly OTT release radar for India, plus a personal watchlist — one Re
 
 It runs **every Wednesday and Friday at 2:00 PM IST** (plus a nightly refresh) using GitHub Actions: fetches OTT release data from TMDB and writes it to Postgres. The live site reads precomputed data straight from Postgres — no TMDB calls happen on a visitor's request.
 
-The Wed/Fri run also sends a **Telegram alert scoped to your own watchlist** — nothing broadcast, nobody else's data — whenever a title on it releases. The pipeline can still send the full Out Now/Coming Up digest as a broadcast (Telegram and/or email; see `SEND_BROADCAST_DIGEST` and `EMAIL_ENABLED` in [Configuration](#configuration-env-vars)) if you want that instead of, or alongside, the watchlist alert — it's just off by default in this deployment.
+The Wed/Fri run also sends a **Telegram alert scoped to your own watchlist** — nothing broadcast, nobody else's data — whenever a title on it releases (see [Watchlist-drop alerts](#watchlist-drop-alerts)). The pipeline can still send the full Out Now/Coming Up digest as a broadcast (Telegram and/or email; see `SEND_BROADCAST_DIGEST` and `EMAIL_ENABLED` in [Configuration](#configuration-env-vars)) if you want that instead of, or alongside, the watchlist alert — it's just off by default in this deployment.
 
 ## What's On The Site
 
@@ -152,7 +152,7 @@ And one repo **variable** (not secret) under the same page's "Variables" tab:
 | `TELEGRAM_ENABLED` | `true` | Toggle Telegram delivery |
 | `EMAIL_ENABLED` | `false` | Toggle email delivery |
 | `SEND_BROADCAST_DIGEST` | `true` | Send the full Out Now/Coming Up digest via Telegram/email. Set `false` to send only owner-scoped watchlist-drop alerts |
-| `NOTIFY_OWNER_EMAILS` | — | Required whenever a watchlist-drop alert would fire (not dry-run, at least one channel enabled). Comma-separated owner email(s) — see repo variables above |
+| `NOTIFY_OWNER_EMAILS` | — | Required whenever a watchlist-drop alert would fire (not dry-run, at least one channel enabled). Comma-separated owner email(s) — see repo variables above and [Watchlist-drop alerts](#watchlist-drop-alerts) |
 | `OMDB_API_KEY` | — | OMDb key for IMDb/RT scores. Unset = no ratings anywhere, silently |
 | `RATINGS_MAX_CALLS` | `400` | OMDb requests one `scripts/backfill_ratings.py` run may spend |
 
@@ -186,6 +186,22 @@ otherwise let one signed-in user edit another's rows just by guessing an id
 `migrations/0007_multi_user_accounts.sql`'s `refresh_dispatches` table: a
 15-minute global cooldown (the pipeline is shared) plus a 5-per-day-per-user
 quota, so one person can't monopolise the shared cooldown slots.
+
+## Watchlist-drop alerts
+
+The Wed/Fri run also cross-references that day's **Out Now** items against
+the watchlists of the accounts in `NOTIFY_OWNER_EMAILS`
+(`find_watchlist_matches` in `releasebot.py`) and sends a Telegram message for
+any match — independent of `SEND_BROADCAST_DIGEST`, so turning the full
+digest off doesn't stop this.
+
+**Never alerted twice on the same channel.** A match only sends if
+`(tmdb_id, media_type, 'watchlist_drop', channel)` has no row yet in
+`sent_notifications`; sending inserts that row. A title can keep matching
+across several runs while it's still "Out Now" — only the first run alerts
+it. The log reflects this: `Watchlist check: 3 match(es), sent 1 new
+alert(s), 2 already notified previously` — fewer sends than matches means
+dedup is working, not a partial failure.
 
 ## Ratings (IMDb / Rotten Tomatoes)
 
