@@ -108,3 +108,115 @@ def test_empty_out_now_returns_early_without_querying():
 
     assert matches == []
     assert conn.cursor().last_query is None
+
+
+class FakeAlertCursor:
+    """Simulates the sent_notifications dedup table: `already_sent` seeds
+    which (tmdb_id, media_type, channel) rows already exist, matching what a
+    previous run's INSERT would have left behind."""
+
+    def __init__(self, already_sent):
+        self.already_sent = set(already_sent)
+        self.inserted: list[tuple] = []
+        self._pending_select: tuple | None = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def execute(self, query, params=None):
+        if query.strip().startswith("SELECT"):
+            self._pending_select = params
+        elif query.strip().startswith("INSERT"):
+            self.inserted.append(params)
+            self.already_sent.add(params)
+
+    def fetchone(self):
+        return (1,) if self._pending_select in self.already_sent else None
+
+
+class FakeAlertConn:
+    def __init__(self, already_sent=()):
+        self._cursor = FakeAlertCursor(already_sent)
+        self.committed = False
+
+    def cursor(self):
+        return self._cursor
+
+    def commit(self):
+        self.committed = True
+
+
+def match(tmdb_id, media_type="movie", title="Some Title", providers=("Netflix",)):
+    return {"tmdb_id": tmdb_id, "media_type": media_type, "title": title, "providers": list(providers)}
+
+
+def test_send_watchlist_alerts_sends_and_records_a_brand_new_match():
+    conn = FakeAlertConn()
+    sent_texts: list[str] = []
+
+    sent = rb.send_watchlist_alerts([match(1)], conn, telegram_sender=sent_texts.append)
+
+    assert sent == 1
+    assert len(sent_texts) == 1
+    assert (1, "movie", "telegram") in conn.cursor().inserted
+    assert conn.committed
+
+
+def test_send_watchlist_alerts_skips_a_match_already_notified_on_that_channel():
+    conn = FakeAlertConn(already_sent={(1, "movie", "telegram")})
+    sent_texts: list[str] = []
+
+    sent = rb.send_watchlist_alerts([match(1)], conn, telegram_sender=sent_texts.append)
+
+    assert sent == 0
+    assert sent_texts == []
+
+
+def test_send_watchlist_alerts_reports_only_genuinely_new_sends():
+    # The exact scenario behind "the log said 3, only 1 message arrived": 3
+    # matches, 2 already alerted on Telegram by an earlier run, 1 new. The
+    # caller's log line must report 1, not len(matches) == 3 — that
+    # over-count was the actual bug, not a missed send.
+    conn = FakeAlertConn(already_sent={(1, "movie", "telegram"), (2, "movie", "telegram")})
+    sent_texts: list[str] = []
+
+    sent = rb.send_watchlist_alerts(
+        [match(1), match(2), match(3)], conn, telegram_sender=sent_texts.append
+    )
+
+    assert sent == 1
+    assert len(sent_texts) == 1
+
+
+def test_send_watchlist_alerts_treats_each_channel_independently():
+    # Telegram already notified for this title, email hasn't — email must
+    # still fire. This is also what makes `len(matches) - sent` the wrong
+    # formula for "already notified" once more than one channel is enabled:
+    # a single match can rack up sent-count contributions from >1 channel.
+    conn = FakeAlertConn(already_sent={(1, "movie", "telegram")})
+    telegram_texts: list[str] = []
+    email_texts: list[str] = []
+
+    sent = rb.send_watchlist_alerts(
+        [match(1)], conn, telegram_sender=telegram_texts.append, email_sender=email_texts.append
+    )
+
+    assert sent == 1
+    assert telegram_texts == []
+    assert len(email_texts) == 1
+
+
+def test_send_watchlist_alerts_message_names_the_title_and_providers():
+    conn = FakeAlertConn()
+    sent_texts: list[str] = []
+
+    rb.send_watchlist_alerts(
+        [match(1, title="Gandhari", providers=["Netflix", "JioHotstar"])],
+        conn,
+        telegram_sender=sent_texts.append,
+    )
+
+    assert sent_texts == ["🎯 From your watchlist: Gandhari is now on Netflix, JioHotstar"]

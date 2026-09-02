@@ -1407,9 +1407,15 @@ def send_watchlist_alerts(
     conn: Any,
     telegram_sender: Any = None,
     email_sender: Any = None,
-) -> None:
+) -> int:
     """For each match, skip channels already alerted (sent_notifications), else
-    send and log. telegram_sender/email_sender are callables taking `text`."""
+    send and log. telegram_sender/email_sender are callables taking `text`.
+
+    Returns the number of channel-sends actually made — a match whose only
+    enabled channel was already notified for this title in a previous run
+    sends nothing here, and the caller's log line needs to say that rather
+    than count it as sent."""
+    sent = 0
     with conn.cursor() as cur:
         for match in matches:
             for channel, sender in (("telegram", telegram_sender), ("email", email_sender)):
@@ -1427,6 +1433,7 @@ def send_watchlist_alerts(
                 providers_text = ", ".join(match["providers"]) or "a streaming platform"
                 text = f"🎯 From your watchlist: {match['title']} is now on {providers_text}"
                 sender(text)
+                sent += 1
                 cur.execute(
                     """
                     INSERT INTO sent_notifications (tmdb_id, media_type, notification_kind, channel)
@@ -1435,6 +1442,7 @@ def send_watchlist_alerts(
                     (match["tmdb_id"], match["media_type"], channel),
                 )
     conn.commit()
+    return sent
 
 
 # ---------------------------------------------------------------------------
@@ -1630,8 +1638,17 @@ def main() -> int:
                         if email_enabled
                         else None
                     )
-                    send_watchlist_alerts(matches, db_conn, telegram_sender, email_sender)
-                    print(f"Sent {len(matches)} watchlist-drop alert(s)")
+                    sent = send_watchlist_alerts(matches, db_conn, telegram_sender, email_sender)
+                    # A "channel-send" per match per enabled channel — with both
+                    # Telegram and email on, one match can account for 2. Compare
+                    # against that ceiling, not len(matches), or this goes
+                    # negative the moment more than one channel is enabled.
+                    enabled_channels = sum(1 for s in (telegram_sender, email_sender) if s)
+                    already_notified = len(matches) * enabled_channels - sent
+                    print(
+                        f"Watchlist check: {len(matches)} match(es), sent {sent} new alert(s)"
+                        + (f", {already_notified} already notified previously" if already_notified else "")
+                    )
                 else:
                     print(f"Watchlist check: 0 matches for {len(owner_emails)} owner email(s)")
             except Exception as exc:  # pragma: no cover
