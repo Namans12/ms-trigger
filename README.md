@@ -4,25 +4,24 @@
 
 A twice-weekly OTT release radar for India, plus a personal watchlist — one React app, backed by Postgres, deployed on Vercel.
 
-It runs **every Wednesday and Friday at 2:00 PM IST** (plus a nightly refresh) using GitHub Actions: fetches OTT release data from TMDB, writes it to Postgres, sends a Telegram digest, and sends a visual email digest. The live site reads precomputed data straight from Postgres — no TMDB calls happen on a visitor's request.
+It runs **every Wednesday and Friday at 2:00 PM IST** (plus a nightly refresh) using GitHub Actions: fetches OTT release data from TMDB and writes it to Postgres. The live site reads precomputed data straight from Postgres — no TMDB calls happen on a visitor's request.
 
-## What You Get
+The Wed/Fri run also sends a **Telegram alert scoped to your own watchlist** — nothing broadcast, nobody else's data — whenever a title on it releases. The pipeline can still send the full Out Now/Coming Up digest as a broadcast (Telegram and/or email; see `SEND_BROADCAST_DIGEST` and `EMAIL_ENABLED` in [Configuration](#configuration-env-vars)) if you want that instead of, or alongside, the watchlist alert — it's just off by default in this deployment.
 
-Each digest has two parts:
+## What's On The Site
+
+Out Now / Coming Up, split into three sections, grouped by streaming platform — this is the same data the broadcast digest above draws from when it's turned on:
 
 - **Out Now** — releases from the run day until the day before the next run
   (Wednesday covers Wed–Thu, Friday covers Fri–Tue: full coverage, no repeats)
 - **Coming Up** — a ~7-day forward preview so you always know what's landing next
-
-Both parts are split into three sections, grouped by streaming platform:
-
 - 🇮🇳 **Hindi OTT** — movies + shows
 - 🌍 **English OTT** — movies + shows
 - 🔥 **Popular (Other Languages)** — any-language releases above a popularity threshold (big Tamil / Telugu / Korean / Spanish titles surface automatically)
 
 Within each section, titles are grouped by platform. A title that's out on a per-title purchase rather than a subscription (buy/rent only — no service carries it with a subscription yet) gets its own **"⟨Service⟩ (Buy/Rent)"** group instead of either vanishing or being folded into a real subscription platform it isn't actually on.
 
-Plus, on the site itself: Browse (trending/popular rows), Search (full TMDB multi-search), and a **My List** section (watchlist, watch later, watched, custom lists) — private per Google account, synced to Postgres.
+Plus: Browse (trending/popular rows), Search (full TMDB multi-search), and a **My List** section (watchlist, watch later, watched, custom lists) — private per Google account, synced to Postgres.
 
 ## Architecture
 
@@ -43,8 +42,8 @@ The public site (Home, Browse, Search, Calendar) needs no login and is the same 
 - Vercel: hosts the React app + API functions
 - TMDB API: movie, show, release, rating, poster, and provider data
 - OMDb API (optional): IMDb and Rotten Tomatoes scores, cached in Postgres (see [Ratings](#ratings-imdb--rotten-tomatoes))
-- Telegram Bot API: instant push notification
-- SMTP email: searchable archive in your inbox
+- Telegram Bot API: instant push notification — owner-scoped watchlist alerts by default, or the full broadcast digest if you turn `SEND_BROADCAST_DIGEST` back on
+- SMTP email: optional, off by default (`EMAIL_ENABLED=false`) — a searchable inbox archive of the same broadcast digest, if you turn it on
 
 ## Setup
 
