@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Spotlight</title>
-<meta name="description" content="Spotlight has moved — find it at spotlightx.vercel.app" />
+<meta name="description" content="Spotlight has moved. Find it at spotlightx.vercel.app." />
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -17,12 +17,21 @@
   }
   body {
     position: relative;
+    overflow: hidden;
+  }
+  /* Same height as .waves below, on purpose: this is the "black area" the
+     wave doesn't cover, and centering main inside exactly that box (rather
+     than the full viewport) is what puts it in the middle of that region
+     instead of the middle of the whole page. */
+  .content-area {
+    position: relative;
+    z-index: 2;
+    height: calc(100vh - 45vh);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 24px;
     text-align: center;
-    overflow: hidden;
   }
   .waves {
     position: absolute;
@@ -30,15 +39,51 @@
     bottom: 0;
     width: 100%;
     height: 45vh;
-    z-index: 0;
+    z-index: 1;
     pointer-events: none;
   }
   @media (prefers-reduced-motion: reduce) {
     .waves path { animation: none !important; }
   }
+  /* Ported from src/components/intro/Meteors.tsx + the .intro-meteor rules in
+     src/index.css (the app's own welcome-screen background) — same look, no
+     React: plain spans placed by a few lines of vanilla JS below. */
+  .meteors {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .meteor {
+    position: absolute;
+    top: -5%;
+    height: 2px;
+    width: 2px;
+    border-radius: 9999px;
+    background: rgba(232, 225, 216, 0.9);
+    box-shadow: 0 0 0 1px rgba(217, 189, 143, 0.15), 0 0 8px rgba(217, 189, 143, 0.6);
+    rotate: var(--meteor-angle, -215deg);
+    animation: meteor linear infinite;
+  }
+  .meteor-tail {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    height: 1px;
+    width: 60px;
+    transform: translateY(-50%);
+    background: linear-gradient(to right, rgba(217, 189, 143, 0.8), transparent);
+  }
+  @keyframes meteor {
+    0% { transform: rotate(var(--meteor-angle)) translateX(0); opacity: 1; }
+    70% { opacity: 1; }
+    100% { transform: rotate(var(--meteor-angle)) translateX(-80vh); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .meteor { animation: none; opacity: 0; }
+  }
   main {
-    position: relative;
-    z-index: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -84,14 +129,18 @@
 </style>
 </head>
 <body>
-  <main>
-    <h1>Spotlight has moved</h1>
-    <p>This GitHub Pages site is retired<br />the app itself lives on Vercel.</p>
-    <a class="button" href="https://spotlightx.vercel.app/">
-      Open Spotlight →
-    </a>
-    <p class="repo-link"><a href="https://github.com/Namans12/ms-trigger">View the source on GitHub</a></p>
-  </main>
+  <div class="meteors" id="meteors" aria-hidden="true"></div>
+
+  <div class="content-area">
+    <main>
+      <h1>Spotlight has moved</h1>
+      <p>This GitHub Pages site is retired.<br />The app itself lives on Vercel.</p>
+      <a class="button" href="https://spotlightx.vercel.app/">
+        Open Spotlight →
+      </a>
+      <p class="repo-link"><a href="https://github.com/Namans12/ms-trigger">View the source on GitHub</a></p>
+    </main>
+  </div>
 
   <svg class="waves" width="100%" height="100%" viewBox="0 0 1440 590" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" aria-hidden="true"><style>
           .path-0{
@@ -182,5 +231,28 @@
               d: path("M 0,600 L 0,450 C 100.80512820512817,441.1692307692308 201.61025641025634,432.33846153846156 275,434 C 348.38974358974366,435.66153846153844 394.3641025641026,447.81538461538463 462,464 C 529.6358974358974,480.18461538461537 618.9333333333334,500.3999999999999 710,484 C 801.0666666666666,467.6000000000001 893.9025641025642,414.5846153846154 984,412 C 1074.0974358974358,409.4153846153846 1161.4564102564102,457.26153846153846 1237,472 C 1312.5435897435898,486.73846153846154 1376.271794871795,468.36923076923074 1440,450 L 1440,600 L 0,600 Z");
             }
           }</style><path d="M 0,600 L 0,450 C 100.80512820512817,441.1692307692308 201.61025641025634,432.33846153846156 275,434 C 348.38974358974366,435.66153846153844 394.3641025641026,447.81538461538463 462,464 C 529.6358974358974,480.18461538461537 618.9333333333334,500.3999999999999 710,484 C 801.0666666666666,467.6000000000001 893.9025641025642,414.5846153846154 984,412 C 1074.0974358974358,409.4153846153846 1161.4564102564102,457.26153846153846 1237,472 C 1312.5435897435898,486.73846153846154 1376.271794871795,468.36923076923074 1440,450 L 1440,600 L 0,600 Z" stroke="none" stroke-width="0" fill="#e8b04b" fill-opacity="1" class="path-3"></path></svg>
+
+  <script>
+    // Mirrors Meteors.tsx's defaults for the intro screen (number=21,
+    // minDuration=3, maxDuration=9; angle/delay left at the component's own
+    // defaults of 215deg / 0.2-1.2s) -- same look, no React needed for 21 spans.
+    (function () {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      var container = document.getElementById("meteors");
+      var count = 21, angle = 215, minDelay = 0.2, maxDelay = 1.2, minDuration = 3, maxDuration = 9;
+      for (var i = 0; i < count; i++) {
+        var meteor = document.createElement("span");
+        meteor.className = "meteor";
+        meteor.style.setProperty("--meteor-angle", -angle + "deg");
+        meteor.style.left = (Math.random() * 100) + "%";
+        meteor.style.animationDelay = (Math.random() * (maxDelay - minDelay) + minDelay) + "s";
+        meteor.style.animationDuration = Math.floor(Math.random() * (maxDuration - minDuration) + minDuration) + "s";
+        var tail = document.createElement("span");
+        tail.className = "meteor-tail";
+        meteor.appendChild(tail);
+        container.appendChild(meteor);
+      }
+    })();
+  </script>
 </body>
 </html>
