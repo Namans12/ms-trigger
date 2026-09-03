@@ -51,3 +51,19 @@ export async function getUserById(sql: postgres.Sql<any>, id: number): Promise<U
   const [row] = await sql`SELECT id, email, display_name, avatar_url FROM users WHERE id = ${id}`;
   return row ? toUserDTO(row) : null;
 }
+
+// Fixed, well-known google_id so every "Continue as Guest" click (including
+// one made autonomously by a WebMCP tool call with no session yet) lands on
+// the same one demo account, rather than minting a fresh throwaway user per
+// visit. Reuses the Google upsert path since a guest is just a user row with
+// no real Google identity behind it.
+const GUEST_GOOGLE_ID = "webmcp-guest-demo";
+
+export async function upsertGuestUser(sql: postgres.Sql<any>): Promise<UserDTO> {
+  return upsertUserFromGoogle(sql, {
+    googleId: GUEST_GOOGLE_ID,
+    email: "guest@spotlight.demo",
+    name: "Guest",
+    picture: null,
+  });
+}

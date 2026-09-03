@@ -179,6 +179,14 @@ which this isn't.
 3. Authorized JavaScript origins: your deployed URL, plus `http://localhost:8080` for local dev.
 4. Copy the Client ID and set it as **both** `GOOGLE_CLIENT_ID` (server-side verification) and `VITE_GOOGLE_CLIENT_ID` (same value — Vite only exposes `VITE_`-prefixed vars to the browser bundle, and the login button needs the id to render). It's the same, non-secret string in both places.
 
+**Guest sign-in:** "Continue as guest" on the login page (and every mutating
+WebMCP tool call, automatically — see [WebMCP](#webmcp-an-agent-co-pilot-for-your-watchlist))
+skips Google entirely and lands on one fixed, shared demo account
+(`lib/usersDb.ts`'s `upsertGuestUser`), reusing the exact same session-cookie
+mechanism as a real sign-in. It exists so a judge, or an agent acting on
+someone's behalf, can exercise the watchlist features with nothing to click
+through first — not as a second real-auth path.
+
 Every mutating watchlist/list query is scoped by `user_id` — including
 writes, not just reads, since `dbId` is a small sequential integer and would
 otherwise let one signed-in user edit another's rows just by guessing an id
@@ -320,6 +328,52 @@ never overwrite a higher-trust one, so a wrong TMDB collection edge cannot be
 fixed by re-seeding. No generator ever clears `suppressed`, so the correction
 survives a full regeneration. There is no un-suppress in the UI — reversing one
 is a single `UPDATE` on a single-owner app.
+
+## WebMCP: an agent co-pilot for your watchlist
+
+Spotlight registers [WebMCP](https://github.com/webmachinelearning/webmcp) tools
+(`document.modelContext.registerTool`) in `src/webmcp/`, so an agent in
+ChatGPT's in-app browser (or Chrome with the WebMCP flag on) can act inside
+your real, signed-in session instead of guessing its way through the UI. Every
+tool is a thin wrapper around the exact same client-side functions the page's
+own buttons call (`src/lib/watchlistApi.ts`, `src/lib/relations.ts`,
+`src/lib/api.ts`) — there's no separate "agent" backend, and the on-screen
+list updates live either way because a tool call invalidates the same React
+Query cache a click would.
+
+**The flagship tool: `plan_watch_order`.** This is why the feature exists.
+Ask ChatGPT "what order should I watch the Conjuring movies in, and get me
+caught up" and a generic agent answers from parametric memory — no real data,
+often wrong, and it can't act on it even when it's right. `plan_watch_order`
+instead reads the real Must Watch chain from [Postgres](#must-watch--can-watch-title-relations)
+(TMDB collections + Wikidata's canonical ordering + curated edges, not a
+guess), cross-references it against what you've actually marked watched, and
+writes the remaining titles into your real watchlist **in the correct
+order** — something an agent that only reads the page can't do, because it
+has no way to act on your authenticated account state.
+
+**All nine tools:**
+
+| Tool | What it does |
+|---|---|
+| `search_titles` | TMDB multi-search |
+| `get_release_digest` | The Out Now / Coming Up digest, by section and window |
+| `get_calendar` | Calendar entries for a given month |
+| `get_watch_order` | Read-only: a title's Must Watch chain + Can Watch extras, with reasons |
+| `plan_watch_order` | **Flagship.** Builds the chain into the watchlist, in order, skipping what's already watched or already on the list |
+| `add_to_watchlist` | Add a title to watchlist / watch later |
+| `mark_watched` | Move a title to watched |
+| `reorder_watchlist` | Reorder the watchlist by title |
+| `correct_watch_order` | Thumbs-down a wrong connection, same as the UI's suppress button |
+
+Every mutating tool calls `ensureAuthenticated()` first, which silently signs
+into the [shared guest account](#accounts--google-sign-in) if there's no
+session yet — an agent (or a judge) should be able to just ask for something
+and have it work, not hit a login wall first.
+
+Tool registration no-ops quietly in any browser that doesn't implement
+`document.modelContext` (still almost all of them) — the site works exactly
+as it did before there.
 
 ## Theatrical calendar: three sources, and a home-market date in parentheses
 

@@ -51,6 +51,28 @@ export function useAuth() {
     },
   });
 
+  /** Same session mechanism as Google sign-in, minus a real identity — lands
+   * on one fixed shared demo account (see upsertGuestUser). Lets someone
+   * (or a WebMCP tool call, see src/webmcp/registerTools.ts) skip Google
+   * entirely to try the watchlist features. */
+  const loginGuest = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guest: true }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Could not start a guest session');
+      }
+      return res.json();
+    },
+    onSuccess: (data: { user: SessionUser }) => {
+      queryClient.setQueryData(['auth', 'session'], { authenticated: true, user: data.user });
+    },
+  });
+
   const logout = useMutation({
     mutationFn: async () => {
       await fetch('/api/auth', { method: 'DELETE' });
@@ -65,6 +87,7 @@ export function useAuth() {
     isLoading: sessionQuery.isLoading,
     user: sessionQuery.data?.user ?? null,
     login,
+    loginGuest,
     logout,
   };
 }

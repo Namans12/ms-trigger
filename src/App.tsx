@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { queryClient } from '@/lib/queryClient';
 import { WatchlistProvider } from '@/contexts/WatchlistContext';
+import { WebMcpBridge } from '@/webmcp/WebMcpBridge';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { IntroGate } from '@/components/intro/IntroGate';
@@ -30,6 +31,7 @@ function NotFound() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <WebMcpBridge />
     <WatchlistProvider>
       <TooltipProvider>
         <IntroGate>

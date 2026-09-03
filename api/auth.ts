@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { createSessionCookie, clearSessionCookie, getSessionUserId, verifyGoogleIdToken } from "../lib/auth.js";
 import { getDb } from "../lib/db.js";
-import { upsertUserFromGoogle, getUserById } from "../lib/usersDb.js";
+import { upsertUserFromGoogle, upsertGuestUser, getUserById } from "../lib/usersDb.js";
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -34,7 +34,22 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   if (req.method === "POST") {
     try {
       const body = await readBody(req);
-      const { idToken } = JSON.parse(body || "{}");
+      const parsed = JSON.parse(body || "{}");
+
+      // Guest sign-in: no Google identity involved, just the same session
+      // cookie pointing at one fixed demo account — lets a WebMCP tool call
+      // establish a session on its own, with nothing for a judge to click
+      // through first. See upsertGuestUser for why it's the same account
+      // every time rather than a fresh row per visit.
+      if (parsed.guest === true) {
+        const user = await upsertGuestUser(getDb());
+        res.statusCode = 200;
+        res.setHeader("Set-Cookie", createSessionCookie(user.id));
+        res.end(JSON.stringify({ ok: true, user }));
+        return;
+      }
+
+      const { idToken } = parsed;
 
       if (typeof idToken !== "string" || !idToken) {
         res.statusCode = 400;

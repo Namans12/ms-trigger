@@ -10,12 +10,23 @@ interface LocationState {
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, loginGuest } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const buttonRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState('');
   const [scriptReady, setScriptReady] = useState(false);
+
+  const continueAsGuest = async () => {
+    setError('');
+    try {
+      await loginGuest.mutateAsync();
+      const from = (location.state as LocationState)?.from?.pathname || '/list';
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start a guest session');
+    }
+  };
 
   useEffect(() => {
     if (!CLIENT_ID) {
@@ -77,6 +88,16 @@ export default function Login() {
 
       {!scriptReady && !error && <Loader2 size={20} className="animate-spin text-accent mb-4" />}
       <div ref={buttonRef} />
+
+      <button
+        type="button"
+        onClick={continueAsGuest}
+        disabled={loginGuest.isPending}
+        className="mt-4 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground underline decoration-dotted underline-offset-4 transition-colors hover:text-foreground disabled:opacity-60"
+      >
+        {loginGuest.isPending && <Loader2 size={12} className="animate-spin" />}
+        Continue as guest (shared demo account, no sign-in)
+      </button>
 
       {error && <p className="text-xs text-danger font-medium mt-4">{error}</p>}
     </div>
